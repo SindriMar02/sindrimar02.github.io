@@ -100,7 +100,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // glow (re-added in the decode module), the scroll-driven zoom-through, and the WebGL lens/chromatic-tear composite unchanged.
   const wmc = document.createElement('canvas'); const wmctx = wmc.getContext('2d');
   if(document.fonts){ document.fonts.load('400 100px Michroma').catch(() => {}); document.fonts.load('500 100px "Martian Mono"').catch(() => {}); }
-  const wmDecode = createWordmarkDecode({ subGap: 0.8 });   // subGap 0.8·fs ≈ the prior height*0.088 slogan placing
+  const wmDecode = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });   // 220ms per letter = strict sequential (A→R→T→I→X)
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
   let needsFit = true, lastDrawnF = -1, earthDirty = true, lastWmOp = -1, lastWmScale = -1, ro = null;
@@ -111,8 +111,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function bump(p){ const d = Math.abs(p - cfg.ctr) / cfg.wid; const s = Math.max(0, 1 - d); return s * s * (3 - 2 * s); }
   function strength(){ return Math.min(1, bump(progress) * cfg.ampMul); }
   function drawWordmark(){
-    const z = Math.min(1, Math.max(0, (progress - 0.08) / 0.18));   // frozen until the membrane, then zoom-through (slow enough that the morph warps it)
-    const scale = 1 + Math.pow(z, 2.4) * 42;                        // KEEP: scroll-driven zoom fully through and past the camera
+    const z = Math.min(1, Math.max(0, (progress - 0.06) / 0.22));   // wider window + earlier start: longer "hold" before zoom
+    const scale = 1 + Math.pow(z, 4) * 42;                          // z^4 ease-in: barely creeps → then rushes through the lens
     const op = 1 - Math.min(1, Math.max(0, (z - 0.97) / 0.03));     // KEEP: geometric exit fade in the final sliver
     // once the decode is fully settled the wordmark only changes when op/scale change (scroll) — skip clear+draw (+upload) at rest
     if(wmDecode.settled && op === lastWmOp && scale === lastWmScale) return false;

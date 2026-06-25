@@ -25,7 +25,7 @@ const SUPPORTS_INERT = ('inert' in HTMLElement.prototype);
 
 let st, dSeq, sSeq, dCanvas, sec, stage, dStage, sStage, mast;
 let brand, word, dcStatus, dcVal, frostDisp, frostRaf = 0, ticker = 0, locked = false, revealed = false;
-let telAlt, telVel;
+let telAlt, telVel, descentScrim;
 let chapters = [], rail, railFill, railNum, skipBtn, activePrev = -1;
 let mmW, mmR, onMM, onBooted, onSkip, built = false, phaseStory = false, staticIO = null, staticTimers = [];
 let segTargets = [], snapLockT = 0, snapAnim = false, coolUntil = 0, glideRaf = 0, touchY = 0, onSnapInput = null, onSnapKey = null, onTouchStart = null, onTouchMove = null;
@@ -81,6 +81,8 @@ function renderDescent(dP){
   if(dSeq) dSeq.setProgress(dP);
   setLock(dP > 0.05);                                    // datum: ACQUIRING → LOCK
   setTelemetry(dP);                                      // altitude + velocity fall as the camera descends
+  // seam prep: fade the bottom gradient out over the last 15% of descent so it matches the story (scrim=0 at seam=0)
+  if(descentScrim){ const v = clamp(1 - (dP - 0.85) / 0.15, 0, 1).toFixed(3); if(descentScrim._op !== v){ descentScrim._op = v; descentScrim.style.opacity = v; } }
 }
 
 /* ───────── PHASE 2 · 7-chapter story ───────── */
@@ -344,6 +346,7 @@ function teardown(){
   staticTimers.forEach(fn => { try { fn(); } catch(e){} }); staticTimers = [];
   cancelAnimationFrame(frostRaf); if(frostDisp){ frostDisp.setAttribute('scale', '0'); delete frostDisp._s; }
   if(telAlt) delete telAlt._v; if(telVel) delete telVel._v;
+  if(descentScrim){ descentScrim.style.opacity = ''; delete descentScrim._op; }
   st = dSeq = sSeq = dCanvas = null; locked = false; revealed = false; phaseStory = false; activePrev = -1; built = false;
   sec && sec.classList.remove('is-static');
   if(dStage){ dStage.style.opacity = ''; dStage.style.visibility = ''; delete dStage._op; }
@@ -372,6 +375,7 @@ export function init(){
   frostDisp = sec.querySelector('#dscFrost feDisplacementMap');
   dcStatus = sec.querySelector('.dc-status'); dcVal = sec.querySelector('.dc-val');
   telAlt = sec.querySelector('.dh-alt'); telVel = sec.querySelector('.dh-vel');
+  descentScrim = sec.querySelector('.descent-scrim');
   chapters = [...sec.querySelectorAll('.chapter')];
   rail = document.querySelector('.story-rail'); railFill = document.querySelector('.story-rail-fill'); railNum = document.querySelector('.story-rail-num');
   skipBtn = document.querySelector('.cine-skip');

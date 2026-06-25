@@ -155,29 +155,28 @@ html:not(.js) .boot{display:none!important;}
 
 /* ONE-CUT CINEMATIC — a SINGLE pinned stage holds BOTH phases (descent + story); js/cinematic.js */
 .cinematic{position:relative;height:1100vh;background:#000;
-  /* the CAMERA's lens vignette — ONE constant border darkening shared by BOTH phases (descent-scrim + story-vignette) so the
-     "uncut camera" border treatment never changes at the seam. Before: the dive's .6 radial swapped to a weaker, --seam-ramped
-     story vignette (~.32 at the seam) → the borders visibly LIGHTENED the instant the first chapter landed (read as a cut). */
   --cine-vignette:radial-gradient(125% 95% at 50% 48%,transparent 50%,rgba(5,9,15,.6) 100%);}
 .cinematic-stage{position:relative;height:100svh;overflow:hidden;background:#000;}
 /* fine grain dithers the footage's WebP gradient banding (no mix-blend — cheap, doesn't re-introduce scrub lag) */
 .cinematic-stage::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;opacity:.05;
   background-image:var(--grain-uri);background-size:var(--grain-tile) var(--grain-tile);}
+/* CAMERA lens vignette — sits ABOVE both phases (z-4) so it never swaps at the seam; the border darkening is a property of the
+   lens, not of either scene. Lifted from per-phase overlays to eliminate the instant radial pop at the descent→story hand-off. */
+.cinematic-stage::before{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;background:var(--cine-vignette);}
 .cinematic .descent,.cinematic #story{position:absolute;inset:0;width:100%;height:100%;}   /* both phases stack on the one stage */
 .cinematic .descent{background:#000;z-index:1;}
 .cinematic #story{background:var(--abyss);overflow:hidden;z-index:2;}
 /* phase visibility is driven inline by js/cinematic.js (stageVis). This is just the pre-JS default: story hidden. */
 .cinematic #story{opacity:0;visibility:hidden;}
-/* At the seam the swap is INSTANT and frame-continuous (frame-183 == frame-1). To stop the heavier story grade from popping,
-   it eases in over moving frames via --seam (0→1, set by cinematic.js): at --seam:0 the story tone ≈ the descent's lighter grade,
-   ramping to full by the time the camera has moved on. */
-.cinematic #story .story-grade{opacity:calc(.28 * (.6 + .4 * var(--seam, 1)));}
-.cinematic #story .story-scrim{opacity:calc(.55 + .45 * var(--seam, 1));}
-.cinematic #story .story-vignette{opacity:1;}   /* CONSTANT — the border vignette no longer ramps with --seam; it matches the dive (--cine-vignette) so the seam swap shows the SAME borders. Only the full-frame grade/scrim below still ease in via --seam (tone, not border). */
+/* At the seam the swap is INSTANT and frame-continuous (frame-183 == frame-1). Grade/scrim START at zero so the instant swap is
+   invisible: JS fades the descent-scrim's bottom gradient out over the last 15% of the descent (renderDescent dP→1), and story
+   overlays ramp from 0 to full over the SEAM window on moving frames. Stage-level vignette (::before) is constant — no swap. */
+.cinematic #story .story-grade{opacity:calc(.28 * var(--seam, 1));}
+.cinematic #story .story-scrim{opacity:var(--seam, 1);}
 .story-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
 .story-grade{position:absolute;inset:0;background:var(--abyss);opacity:.34;}   /* normal blend (was mix-blend:multiply — that recomposited every scrubbed frame) */
 .story-scrim{position:absolute;inset:0;background:linear-gradient(0deg,var(--abyss) 2%,rgba(5,9,15,.18) 40%,transparent 72%),linear-gradient(90deg,rgba(5,9,15,.68),transparent 56%);}
-.story-vignette{position:absolute;inset:0;background:var(--cine-vignette);}   /* SAME lens vignette as the dive — see --cine-vignette on .cinematic */
+.story-vignette{display:none;}   /* vignette moved to .cinematic-stage::before — this element is now obsolete */
 .chapters{position:absolute;inset:0;}
 .chapter{position:absolute;inset:0;display:grid;align-content:center;gap:var(--space-5);width:min(var(--max),100%);margin:0 auto;padding:var(--section-y) var(--pad);}
 .chapter h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2.1rem,5.1vw,4.4rem);letter-spacing:var(--track-display);line-height:var(--leading-tight);margin:0;text-shadow:0 2px 30px rgba(2,6,13,.8);}   /* dialled down from --fs-h1 (max 6.2rem) — this .chapter h2 rule (0,1,1) is what actually governs the pinned chapter titles, overriding .ch-title */
@@ -187,6 +186,7 @@ html:not(.js) .boot{display:none!important;}
 /* static fallback (reduced-motion / mobile / no-GSAP) — no pin/scrub; chapters become normal stacked sections */
 .cinematic.is-static{height:auto;}
 .cinematic.is-static .cinematic-stage{height:auto;overflow:visible;}
+.cinematic.is-static .cinematic-stage::before{display:none;}   /* no stage vignette in stacked-chapter mode */
 .cinematic.is-static .descent{display:none;}
 .cinematic.is-static #story{position:static;opacity:1;visibility:visible;height:auto;}
 .cinematic.is-static .story-canvas,.cinematic.is-static .story-vignette,.cinematic.is-static .story-grade,.cinematic.is-static .story-scrim{display:none;}
@@ -356,7 +356,7 @@ html:not(.js) .boot{display:none!important;}
 .ch-sub{transition:opacity .9s var(--ease-expo) .28s, transform .9s var(--ease-expo) .28s;}
 
 /* (story grain removed — .cinematic-stage::after already grains the whole stage, and mix-blend:overlay here recomposited every scrubbed frame) */
-.story-vignette{background:var(--cine-vignette);}   /* (kept identical to the .descent-scrim radial so the seam never pops) */
+/* .story-vignette is now display:none — vignette is on .cinematic-stage::before */
 
 /* live-instrument progress rail (homepage only) */
 .story-rail{position:fixed;right:clamp(1.1rem,2.6vw,2.6rem);top:50%;transform:translateY(-50%);z-index:60;
@@ -634,7 +634,7 @@ html:not(.js) .boot{display:none!important;}
 .descent.is-lens .descent-scan{display:none!important;}
 .descent-grade{position:absolute;inset:0;background:rgba(5,9,15,.18);pointer-events:none;}
 .descent-scrim{position:absolute;inset:0;pointer-events:none;
-  background:var(--cine-vignette),linear-gradient(0deg,var(--abyss) 2%,transparent 32%);}   /* same lens vignette the story carries — the seam swap keeps the SAME borders (the bottom grade stays descent-only) */
+  background:linear-gradient(0deg,var(--abyss) 2%,transparent 32%);}   /* bottom grade only; vignette is now on .cinematic-stage::before. JS fades this to 0 as dP→1 so it matches story at seam=0. */
 /* satellite scan-line — sweeps the surface during acquisition, stops at lock */
 .descent-scan{position:absolute;left:0;right:0;top:0;height:2px;z-index:1;pointer-events:none;opacity:0;mix-blend-mode:screen;
   background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent-signal) 75%,transparent) 30%,color-mix(in srgb,var(--frost) 82%,transparent),color-mix(in srgb,var(--accent-signal) 75%,transparent) 70%,transparent);
@@ -687,6 +687,7 @@ html:not(.js) .descent{display:none;}
 html:not(.js) .cinematic,html:not(.js) .cinematic-stage{height:auto;overflow:visible;}
 html:not(.js) #story{position:static;opacity:1;visibility:visible;height:auto;}
 html:not(.js) .story-canvas,html:not(.js) .story-vignette,html:not(.js) .story-grade,html:not(.js) .story-scrim{display:none;}
+html:not(.js) .cinematic-stage::before{display:none;}
 html:not(.js) .chapters{position:static;}
 html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;transform:none;}
 @media (prefers-reduced-motion:reduce){.cinematic .descent{display:none;}}

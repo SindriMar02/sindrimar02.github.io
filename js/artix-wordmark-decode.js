@@ -45,16 +45,18 @@ const isPass = (c) => c === ' ' || c === '.'; // spaces + periods pass through
  * @param {object} [opts]
  * @param {string} [opts.title='ARTIX']
  * @param {string} [opts.sub='SOURCED. DELIVERED. SUPPORTED.']
- * @param {number} [opts.titleDur=860]  ms for ARTIX to fully resolve
- * @param {number} [opts.subDur=1000]   ms for the slogan to fully resolve
- * @param {number} [opts.gap=190]       ms beat between title lock and slogan start
- * @param {number} [opts.subScale=0.175] slogan font size as a fraction of wordmark fs
- * @param {number} [opts.subGap=0.62]   slogan baseline below the wordmark centre, in fs (site uses 0.8 to keep current placing)
+ * @param {number} [opts.titleDur=860]      ms for ARTIX to fully resolve (used when titleStagger is NOT set)
+ * @param {number} [opts.titleStagger=null] explicit per-char stagger ms; if set, stag=settle=titleStagger → strict one-letter-at-a-time
+ * @param {number} [opts.subDur=1000]       ms for the slogan to fully resolve
+ * @param {number} [opts.gap=190]           ms beat between title lock and slogan start
+ * @param {number} [opts.subScale=0.175]    slogan font size as a fraction of wordmark fs
+ * @param {number} [opts.subGap=0.62]       slogan baseline below the wordmark centre, in fs (site uses 0.8 to keep current placing)
  */
 export function createWordmarkDecode(opts = {}) {
-  const TITLE     = opts.title    ?? 'ARTIX';
-  const SUB       = opts.sub      ?? 'SOURCED. DELIVERED. SUPPORTED.';
-  const TITLE_DUR = opts.titleDur ?? 860;
+  const TITLE         = opts.title         ?? 'ARTIX';
+  const SUB           = opts.sub           ?? 'SOURCED. DELIVERED. SUPPORTED.';
+  const TITLE_DUR     = opts.titleDur      ?? 860;
+  const TITLE_STAGGER = opts.titleStagger  ?? null;   // if set: stag=settle=titleStagger (sequential one-at-a-time decode)
   const SUB_DUR   = opts.subDur   ?? 1000;
   const GAP       = opts.gap      ?? 190;
   const SUB_SCALE = opts.subScale ?? 0.175;
@@ -138,8 +140,10 @@ export function createWordmarkDecode(opts = {}) {
   /** Paint one decoding word. t = ms since THIS word's beat began. */
   function drawWord(ctx, lay, cx, cy, fs, t, churn, now, isTitle, alpha) {
     const n      = lay.n;
-    const stag   = (((isTitle ? TITLE_DUR : SUB_DUR) * 0.42) / Math.max(n, 1));
-    const settle = (isTitle ? TITLE_DUR : SUB_DUR) * 0.52;
+    const dur    = isTitle ? TITLE_DUR : SUB_DUR;
+    // titleStagger: stag=settle=TITLE_STAGGER → strictly one letter resolves before the next begins
+    const stag   = (isTitle && TITLE_STAGGER != null) ? TITLE_STAGGER : ((dur * 0.42) / Math.max(n, 1));
+    const settle = (isTitle && TITLE_STAGGER != null) ? TITLE_STAGGER : (dur * 0.52);
 
     // throttle the random churn to ~20/s with one shared clock (calm, not strobe)
     if (now - churn.last > 50) {
@@ -254,9 +258,11 @@ export function createWordmarkDecode(opts = {}) {
 
     const t = now - startT;
 
-    // beat boundaries
+    // beat boundaries — recalculate using the same stag/settle logic as drawWord
     const tN = L.title.n;
-    const titleTotal = (tN - 1) * ((TITLE_DUR * 0.42) / tN) + TITLE_DUR * 0.52;
+    const tStag   = TITLE_STAGGER != null ? TITLE_STAGGER : ((TITLE_DUR * 0.42) / tN);
+    const tSettle = TITLE_STAGGER != null ? TITLE_STAGGER : (TITLE_DUR * 0.52);
+    const titleTotal = (tN - 1) * tStag + tSettle;
     const subStart = titleTotal + GAP;
 
     // title (beat 1)
