@@ -120,12 +120,7 @@
         <p class="footer-tagline" lang="is">Árvekni í þágu öryggis</p>
         <a class="btn btn-ghost" href="/contact/">Request a briefing <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
       </div>
-      <div class="footer-radar" aria-hidden="true">
-        <svg class="fr-grid" viewBox="0 0 200 200"><circle cx="100" cy="100" r="94"/><circle cx="100" cy="100" r="64"/><circle cx="100" cy="100" r="34"/><line x1="100" y1="6" x2="100" y2="194"/><line x1="6" y1="100" x2="194" y2="100"/></svg>
-        <span class="fr-sweep"></span>
-        <svg class="helm-morph fr-morph" viewBox="0 0 100 100" aria-hidden="true"><path class="hm-shape"></path><path class="hm-detail"></path></svg>
-        <p class="fr-readout">64.32°N 22.08°W · <time class="fr-clock">--:--:-- UTC</time></p>
-      </div>
+      <div class="footer-helm" aria-hidden="true"><img class="fh-mark" src="/assets/helm-mark.svg" alt="" width="120" height="148"></div>
     </div>
     <p class="footer-wordmark" aria-hidden="true">ARTIX</p>
     <div class="footer-legal">
@@ -141,7 +136,8 @@ import * as nav from '/js/nav.js';
 import * as reveal from '/js/reveal.js';
 import * as footer from '/js/footer.js';
 import * as cards from '/js/cards.js';
-router.mount([nav, reveal, footer, cards]);
+import * as cursor from '/js/cursor.js';
+router.mount([nav, reveal, footer, cards, cursor]);
 </script>
 </body>
 </html>

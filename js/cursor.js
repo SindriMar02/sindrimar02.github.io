@@ -1,11 +1,11 @@
-// HOMEPAGE-ONLY custom cursor — "Reticle Lock". A square targeting bracket (four L-corners + a centre dot) tracks the
+// SITE-WIDE custom cursor — "Reticle Lock". A square targeting bracket (four L-corners + a centre dot) tracks the
 // pointer 1:1 (NO lerp — instant), then eases inward and tints ember when the pointer reaches an interactive target (lock).
-// Gated on body.home + pointer:fine + not reduced-motion. aria-hidden + pointer-events:none; layered ABOVE :focus-visible
-// (never replaces it). Never mounts on info routes (they lack body.home) or on touch / reduced-motion.
+// Mounts on EVERY page (homepage + info routes). Gated on pointer:fine + not reduced-motion. aria-hidden +
+// pointer-events:none; layered ABOVE :focus-visible (never replaces it). Off on touch / reduced-motion.
 let cur, onMove, onOver, onOut, onLeave;
 const LOCK = 'a,button,input,textarea,select,summary,[role="button"],[data-target],label[for]';   // Spec v1 §05 lock affordances
 export function init(){
-  if(!(document.body.classList.contains('home') && matchMedia('(pointer:fine)').matches && !matchMedia('(prefers-reduced-motion:reduce)').matches)) return;
+  if(!(matchMedia('(pointer:fine)').matches && !matchMedia('(prefers-reduced-motion:reduce)').matches)) return;
   cur = document.createElement('div');
   cur.className = 'rl-cursor';
   cur.setAttribute('aria-hidden', 'true');
