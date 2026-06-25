@@ -20,6 +20,7 @@ const FLARE_GLOW   = 'rgba(116,198,230,.7)';                                   /
 function buildChars(el, target){
   el.textContent = '';
   const chars = [];
+  let word = null;                                                   // current word wrapper — each .sc is an atomic inline-block, and a break can fall between ANY two adjacent ones, so a multi-line sub would split words mid-word ("Icela"/"nd"). Wrap each word in a nowrap span so SPACES are the only break opportunities.
   for(const ch of target){
     const s = document.createElement('span');
     s.className = 'sc';
@@ -27,7 +28,8 @@ function buildChars(el, target){
     s.dataset.final = space ? ' ' : ch;
     if(space){ s.dataset.space = '1'; s.style.whiteSpace = 'pre'; }   // pre = keep the space from collapsing to 0-width inside the inline-block slot (.ch-title .sc forces inline-block, which otherwise trims a lone space)
     s.textContent = space ? ' ' : ch;
-    el.appendChild(s);
+    if(space){ word = null; el.appendChild(s); }                      // spaces sit between word wrappers — the only places a line may break
+    else { if(!word){ word = document.createElement('span'); word.className = 'scw'; word.style.whiteSpace = 'nowrap'; el.appendChild(word); } word.appendChild(s); }
     chars.push(s);
   }
   // lock each slot to its final glyph width so subsequent glyph swaps can't shift the layout

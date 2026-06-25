@@ -164,7 +164,7 @@ html:not(.js) .boot{display:none!important;}
    lens, not of either scene. Lifted from per-phase overlays to eliminate the instant radial pop at the descent→story hand-off. */
 .cinematic-stage::before{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;background:var(--cine-vignette);}
 .cinematic .descent,.cinematic #story{position:absolute;inset:0;width:100%;height:100%;}   /* both phases stack on the one stage */
-.cinematic .descent{background:#000;z-index:1;}
+.cinematic .descent{background:#000 center/cover no-repeat url("/assets/dive-frames/frame-0001.webp");z-index:1;}   /* poster behind the WebGL canvas: if the canvas is unpainted (load/refresh) or the GL context is lost, the first dive frame shows instead of black. Mobile static overrides this (it has its own ::before poster). */
 .cinematic #story{background:var(--abyss);overflow:hidden;z-index:2;}
 /* phase visibility is driven inline by js/cinematic.js (stageVis). This is just the pre-JS default: story hidden. */
 .cinematic #story{opacity:0;visibility:hidden;}
@@ -370,7 +370,7 @@ html:not(.js) .boot{display:none!important;}
 /* secondary → a centred FROST lede (brighter + larger than the grey chapter subs), its own sentence */
 .chapter-hero .ch-sub{color:var(--frost);font-size:clamp(1.05rem,1.55vw,1.35rem);max-width:48ch;line-height:1.6;letter-spacing:.004em;text-shadow:0 1px 18px rgba(2,6,13,.8);}
 /* scroll cue → a framed bottom-centre affordance: caption · drawn hairline · bobbing arrow (chapters use inline text links instead) */
-.chapter-hero .ch-cue{position:absolute;left:0;right:0;bottom:clamp(2.4rem,9vh,5rem);margin:0;display:flex;flex-direction:column;align-items:center;gap:.65rem;color:var(--text-faint);}
+.chapter-hero .ch-cue{position:absolute;left:0;right:0;bottom:clamp(2.4rem,9vh,5rem);margin:0;max-width:none;display:flex;flex-direction:column;align-items:center;gap:.65rem;color:var(--text-faint);}   /* max-width:none overrides .chapter p's --measure cap — otherwise left:0/right:0 pins the box left (width=measure) instead of centring */
 .chapter-hero .ch-cue::after{content:"";order:1;width:1px;height:clamp(16px,3.6vh,28px);background:linear-gradient(180deg,var(--accent-signal),transparent);opacity:.65;}
 .chapter-hero .ch-cue span{order:2;color:var(--accent-signal);}
 /* reticle corner brackets — frame the cover like a camera lock (one element, 8 corner bars); fades out with the hero on scroll */
@@ -658,7 +658,7 @@ html:not(.js) .boot{display:none!important;}
 /* ============ ORBITAL DESCENT — opening of the ONE-CUT scroll cinematic (js/descent.js) ============ */
 /* a pinned, scroll-scrubbed canvas (assets/descent-frames) that lands on story frame-0001 and flows straight into #story */
 .descent{position:absolute;inset:0;background:#000;}   /* PHASE-1 stage inside .cinematic-stage — no longer its own scroll section */
-.descent-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.descent-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:1;transition:opacity .3s ease;}   /* dive-lens holds opacity:0 until its first frame paints (the poster shows through), then fades to 1 — no black flash on (re)load */
 /* WebGL push-through (js/dive-lens.js) renders the lens + the crystalline-ice ARTIX wordmark ITSELF on the canvas, so the
    legacy DOM brand/coord/grade/scan overlays are hidden under .is-lens. Only the live telemetry datum stays. */
 .descent.is-lens .descent-brand,
@@ -731,7 +731,7 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
 @media (prefers-reduced-motion:reduce){.cinematic .descent{display:none;}}
 
 /* SKIP INTRO — a quiet pill that appears through the cinematic and retires as it ends (js/cinematic.js toggles .is-on) */
-.cine-skip{position:fixed;left:50%;bottom:clamp(1.2rem,3.2vh,2.3rem);transform:translate(-50%,10px);z-index:55;
+.cine-skip{position:fixed;right:max(clamp(1.1rem,3vw,2.4rem),env(safe-area-inset-right));left:auto;bottom:clamp(1.2rem,3.2vh,2.3rem);transform:translate(0,10px);z-index:55;
   display:inline-flex;align-items:center;gap:.55rem;padding:.46rem .55rem .46rem .95rem;
   font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);text-transform:uppercase;
   color:var(--text-faint);background:color-mix(in srgb,var(--abyss) 32%,transparent);
@@ -739,7 +739,7 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer;
   opacity:0;pointer-events:none;
   transition:opacity .6s var(--ease),transform .6s var(--ease-expo),color .3s var(--ease),border-color .3s var(--ease);}
-.cine-skip.is-on{opacity:.82;pointer-events:auto;transform:translate(-50%,0);}
+.cine-skip.is-on{opacity:.82;pointer-events:auto;transform:translate(0,0);}
 .cine-skip:hover{opacity:1;color:var(--frost);border-color:color-mix(in srgb,var(--frost) 26%,transparent);}
 .cine-skip:focus-visible{outline:2px solid var(--accent-signal);outline-offset:3px;opacity:1;}
 .cine-skip .cs-line{width:1px;height:1.05em;background:color-mix(in srgb,var(--frost) 24%,transparent);}

@@ -53,6 +53,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   let gl = null;
   try { gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false, powerPreference: 'high-performance' }); } catch(e){}
   if(!gl) return null;
+  canvas.style.opacity = '0';   // stay transparent until the FIRST frame actually paints (the CSS poster behind shows through) → no black flash on load/refresh
 
   function sh(t, src){ const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
     if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error('[dive-lens]', gl.getShaderInfoLog(s)); return s; }
@@ -74,26 +75,39 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // ── self-contained frame loader (windowed decode + eviction; mirrors canvas-seq but draws cover-fit to our earthC) ──
   const earthC = document.createElement('canvas'); const octx = earthC.getContext('2d', { alpha: false });
   const frames = new Array(count);
+  const tries = new Uint8Array(count);   // bounded per-frame retry counter — recover a transient WebP fetch failure instead of staying blank forever
   const srcOf = (i) => dir + 'frame-' + ('000' + i).slice(-4) + '.webp';
   let curF = 1, lastCenter = -1;
+  const isReady = (im) => !!(im && im.complete && im.naturalWidth > 0);
   function load(i){ if(i < 1 || i > count || frames[i-1]) return;
-    const im = new Image(); im.decoding = 'async'; im.src = srcOf(i); frames[i-1] = im; if(im.decode) im.decode().catch(() => {}); }
+    const im = new Image(); im.decoding = 'async';
+    im.onerror = () => { if(frames[i-1] !== im) return; frames[i-1] = undefined;        // free the slot (was: a failed/aborted request stayed in the array forever → permanent black / frozen frame)
+      if(tries[i-1] < 4){ tries[i-1]++; setTimeout(() => { if(!frames[i-1]) load(i); }, 300 * tries[i-1]); } };   // capped backoff retry so a transient miss self-heals
+    im.src = srcOf(i); frames[i-1] = im; if(im.decode) im.decode().catch(() => {}); }
+  function drop(im){ if(im){ im.onerror = null; im.src = ''; } }   // null onerror BEFORE blanking src so the abort doesn't trip the retry
   function setFrame(p){ const f = 1 + Math.max(0, Math.min(1, p)) * (count - 1); curF = f; const c = Math.round(f);
     if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 24; i++) load(i);   // FORWARD-biased window — decode well ahead of the dive so the fast Iceland/clouds stretch never out-runs the WebP decode
-      for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 32){ im.src = ''; frames[i-1] = undefined; } } } }
+      for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 32){ drop(im); frames[i-1] = undefined; } } } }
+  function nearestReady(idx){ if(isReady(frames[idx-1])) return idx;                     // exact frame ready
+    for(let d = 1; d <= 12; d++){ if(isReady(frames[idx-1-d])) return idx - d; if(isReady(frames[idx-1+d])) return idx + d; } return 0; }
   function coverDraw(){ const cw = earthC.width, ch = earthC.height; if(!cw) return false;
     const lo = Math.max(1, Math.min(count, Math.floor(curF))), hi = Math.min(count, lo + 1), frac = curF - lo;
-    const a = frames[lo-1]; if(!a || !a.complete || !a.naturalWidth){ load(lo); return false; }
     const cover = (im) => { const ir = im.naturalWidth / im.naturalHeight, cr = cw / ch; let w, h;
       if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } octx.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h); };
+    const a = frames[lo-1];
+    if(!isReady(a)){ load(lo); const nr = nearestReady(lo); if(!nr) return false;        // DECODE MISS: draw the NEAREST loaded frame so the camera keeps MOVING (was: bail → freeze on the last frame = the stutter). Return 'near' so we re-try the exact frame next tick.
+      octx.globalAlpha = 1; cover(frames[nr-1]); return 'near'; }
     octx.globalAlpha = 1; cover(a);
-    const b = frames[hi-1]; if(frac > 0 && b && b.complete && b.naturalWidth){ octx.globalAlpha = frac; cover(b); octx.globalAlpha = 1; }
+    const b = frames[hi-1]; if(frac > 0 && isReady(b)){ octx.globalAlpha = frac; cover(b); octx.globalAlpha = 1; }
     return true; }
   const prefetchCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-  function prefetchAll(){ let i = 1, inflight = 0; const pump = () => { while(inflight < 4 && i <= count){ const u = srcOf(i++); inflight++;
+  function prefetchAll(){ let i = 1, inflight = 0; const pump = () => { while(inflight < 3 && i <= count){ const u = srcOf(i++); inflight++;   // 3 in-flight (was 4): leave headroom for the windowed <img> loads + the live scrub
       fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; pump(); }); } };
-    (window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(pump); }
-  prefetchAll();
+    pump(); }
+  // gate the whole-sequence prefetch on window load + idle (was firing at module init) so it never competes with the CRITICAL first
+  // frames / first paint on a (re)load — a prefetch storm during boot was a verified "frames don't load on refresh" contributor
+  const schedulePrefetch = () => (window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(prefetchAll, { timeout: 6000 });
+  if(document.readyState === 'complete') schedulePrefetch(); else window.addEventListener('load', schedulePrefetch, { once: true });
 
   // ── ice ARTIX wordmark (its own canvas; warped/composited by the shader) ──
   // Treatment-B instrument decode (claude-design handoff) draws the wordmark+slogan; this file keeps the placing, the resting
@@ -103,7 +117,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const wmDecode = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });   // 220ms per letter = strict sequential (A→R→T→I→X)
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
-  let needsFit = true, lastDrawnF = -1, earthDirty = true, lastWmOp = -1, lastWmScale = -1, ro = null;
+  let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
   const onResize = () => { needsFit = true; };
   try { ro = new ResizeObserver(() => { needsFit = true; }); ro.observe(canvas); } catch(e){}
   window.addEventListener('resize', onResize, { passive: true });
@@ -135,14 +149,24 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
     let resized = false;
     if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); resized = true; }
-    if(earthC.width !== w || earthC.height !== h){ earthC.width = w; earthC.height = h; resized = true; }
+    // earthC = the texture re-uploaded to the GPU EVERY scrubbed frame. The dive frames are ~1600×900, so a 2880px backing store
+    // just uploads ~3× the pixels per frame for no sharpness gain → GPU-side stutter. Cap it to ~source res (same aspect). The
+    // shader samples it by normalized UV, so a smaller earth texture is invisible; the wmc (sharp ARTIX) stays full-res.
+    const EMAX = 1600, es = Math.min(1, EMAX / Math.max(w, h));
+    const ew = Math.max(2, Math.round(w * es)), eh = Math.max(2, Math.round(h * es));
+    if(earthC.width !== ew || earthC.height !== eh){ earthC.width = ew; earthC.height = eh; resized = true; }
     if(wmc.width !== w || wmc.height !== h){ wmc.width = w; wmc.height = h; resized = true; }
     return resized;
   }
 
+  let painted = false;
   function frame(){
     const resized = fit();
-    if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; } }   // earthC only changes when the frame/blend moves or on resize
+    if(curF !== lastDrawnF || resized){ const drew = coverDraw();                        // earthC only changes when the frame/blend moves or on resize
+      if(drew === true){ lastDrawnF = curF; earthDirty = true; }
+      else if(drew === 'near'){ earthDirty = true; }                                      // drew a SUBSTITUTE frame on a decode miss — don't latch lastDrawnF, so the exact frame still draws once it lands
+    }
+    if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
     const wmChanged = drawWordmark();
     try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
       if(earthDirty){ earthDirty = false; gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); } } catch(e){}
@@ -154,10 +178,13 @@ export function createDiveLens({ canvas, dir, count, settings }){
     gl.uniform1f(uWS, cfg.wobScale); gl.uniform1f(uWSp, cfg.wobSpeed);
     gl.uniform1f(uT, (performance.now() - t0) / 1000);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if(!painted){ painted = true; canvas.style.opacity = '1'; }                           // first real paint — fade the canvas in over the poster (CSS transition)
     if(running) raf = requestAnimationFrame(frame);
   }
   function start(){ if(running) return; running = true; raf = requestAnimationFrame(frame); }
   function stop(){ running = false; cancelAnimationFrame(raf); }
+  // GPU dropped the WebGL context: fall back to the poster (canvas transparent) instead of a permanent black canvas, and stop the loop
+  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); painted = false; lastDrawnF = -1; earthDirty = false; canvas.style.opacity = '0'; stop(); }, false);
   setFrame(0); start();
 
   return {
@@ -168,7 +195,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     resume: start,
     get count(){ return count; },
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
-      for(let i = 0; i < frames.length; i++){ const im = frames[i]; if(im){ im.src = ''; } } frames.length = 0;
+      for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }
   };
 }
