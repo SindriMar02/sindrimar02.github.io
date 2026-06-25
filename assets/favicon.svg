@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="13" fill="#05090F"/>
+  <g fill="none" stroke="#EAF2F6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path id="a" d="M32 26 L32 9 M28 19 L36 19 M29 15 L35 15 M32 9 L29 5 M32 9 L32 4 M32 9 L35 5"/>
+    <use href="#a" transform="rotate(45 32 32)"/>
+    <use href="#a" transform="rotate(90 32 32)"/>
+    <use href="#a" transform="rotate(135 32 32)"/>
+    <use href="#a" transform="rotate(180 32 32)"/>
+    <use href="#a" transform="rotate(225 32 32)"/>
+    <use href="#a" transform="rotate(270 32 32)"/>
+    <use href="#a" transform="rotate(315 32 32)"/>
+  </g>
+  <circle cx="32" cy="32" r="2.6" fill="#FF6A00"/>
+</svg>

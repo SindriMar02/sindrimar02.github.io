@@ -1,0 +1,793 @@
+/* ARTIX site.css — layout shell: masthead, footer, page chrome. Consumes tokens.css + components.css. */
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);
+     font-size:var(--fs-body-md);line-height:var(--leading-body);-webkit-font-smoothing:antialiased;
+     overflow-x:hidden;min-height:100svh;}
+a{color:inherit;}
+.skip-link{position:fixed;top:calc(.6rem + env(safe-area-inset-top));left:calc(.6rem + env(safe-area-inset-left));z-index:200;transform:translateY(-160%);
+     background:var(--accent-live);color:var(--on-accent);padding:.6rem 1rem;border-radius:var(--radius-sm);
+     font-family:var(--font-mono);font-size:var(--fs-mono-label);transition:transform var(--dur-fast) var(--ease);}
+.skip-link:focus{transform:none;}
+
+/* ---------- MASTHEAD — floating frosted pill, compacts on scroll ---------- */
+.masthead{position:fixed;inset:0 0 auto 0;z-index:100;display:flex;justify-content:center;
+     padding:0;pointer-events:none;view-transition-name:artix-masthead;}
+/* MINIMAL INSTRUMENT BAR — full-width, FLAT (no glass/blur). The chrome floats transparent over the cinematic; a flat fill + a
+   single cyan hairline ASSEMBLE on scroll into content. (Replaced the frosted-glass pill.) */
+.mast-pill{pointer-events:auto;position:relative;display:flex;align-items:center;gap:var(--space-6);
+     width:100%;max-width:none;border:0;border-radius:0;background:transparent;
+     padding:calc(clamp(.7rem,1.5vw,1rem) + env(safe-area-inset-top)) max(var(--pad),env(safe-area-inset-right)) clamp(.7rem,1.5vw,1rem) max(var(--pad),env(safe-area-inset-left));
+     transition:padding .42s var(--ease-expo);}
+/* flat fill — fades in as the bar assembles over content (NOT a backdrop blur) */
+.mast-pill::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+     background:linear-gradient(180deg,color-mix(in srgb,var(--abyss) 94%,transparent) 0%,color-mix(in srgb,var(--abyss) 80%,transparent) 100%);
+     opacity:0;transition:opacity .5s var(--ease);}
+/* the ONE cyan accent — a hairline that draws across the bottom edge when the bar assembles */
+.mast-pill::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;z-index:-1;pointer-events:none;
+     background:linear-gradient(90deg,color-mix(in srgb,var(--accent-signal) 60%,transparent) 0%,color-mix(in srgb,var(--frost) 16%,transparent) 42%,transparent 100%);
+     transform:scaleX(0);transform-origin:left center;transition:transform .6s var(--ease-expo);}
+.masthead.is-stuck .mast-pill::before{opacity:1;}
+.masthead.is-stuck .mast-pill::after{transform:scaleX(1);}
+.mast-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--text);}
+.mast-mark{display:block;height:1.7rem;width:auto;}
+.mast-word{font-family:var(--font-wordmark);font-weight:400;font-size:1.1rem;letter-spacing:.16em;line-height:1;padding-right:.16em;text-transform:none;}   /* Spec v1 §01 — Michroma wordmark */
+.mast-nav{display:flex;gap:var(--space-6);list-style:none;margin:0 auto;padding:0;}
+.mast-nav a{font-family:var(--font-mono);font-size:var(--fs-mono-nav);letter-spacing:var(--track-mono-ui);
+     color:var(--text-dim);text-decoration:none;transition:color var(--dur-fast) var(--ease);}
+.mast-nav a:hover,.mast-nav a:focus-visible{color:var(--text);}
+.mast-cta{font-family:var(--font-mono);font-size:var(--fs-mono-cta);letter-spacing:var(--track-cta);
+     text-transform:uppercase;background:var(--accent-live);color:var(--on-accent);text-decoration:none;
+     padding:.62rem 1.05rem;border-radius:var(--radius-pill);white-space:nowrap;
+     transition:background var(--dur-fast) var(--ease);}
+.mast-cta:hover{background:var(--accent-live-hot);}
+.mast-burger{display:none;}
+.mast-drawer{display:none;}
+@media (max-width:860px){
+  .mast-nav,.mast-pill>.mast-cta{display:none;}
+  /* backdrop-filter on .mast-pill creates a stacking context — give it z-index so it sits above the drawer (z-index:99) */
+  .mast-pill{z-index:101;}
+  /* BURGER — clean 3 bars → X, 44px hit area, ICE press + focus feedback (no border/glow ring) */
+  .mast-burger{display:flex;pointer-events:auto;margin-left:auto;margin-right:-.2rem;width:2.75rem;height:2.75rem;align-items:center;
+     justify-content:center;background:none;border:none;border-radius:10px;cursor:pointer;
+     transition:transform var(--dur-fast) var(--ease),background var(--dur-mid) var(--ease);}
+  .mast-burger:active{transform:scale(.9);}
+  .mast-burger:active span,.mast-burger:active span::before,.mast-burger:active span::after{background:var(--accent-signal);}
+  .mast-burger:focus-visible{outline:2px solid var(--accent-signal);outline-offset:3px;}
+  .mast-burger[aria-expanded="true"]{background:transparent;}
+  .mast-burger span{display:block;position:relative;width:20px;height:2px;border-radius:2px;background:var(--text);
+     transition:background var(--dur-mid) var(--ease-expo);}
+  .mast-burger span::before,.mast-burger span::after{content:"";position:absolute;left:0;width:20px;height:2px;border-radius:2px;background:var(--text);
+     transition:top var(--dur-mid) var(--ease-expo),transform var(--dur-mid) var(--ease-expo),background var(--dur-mid) var(--ease-expo);}
+  .mast-burger span::before{top:-6px;}
+  .mast-burger span::after{top:6px;}
+  .mast-burger[aria-expanded="true"] span{background:transparent;}
+  .mast-burger[aria-expanded="true"] span::before{top:0;transform:rotate(45deg);}
+  .mast-burger[aria-expanded="true"] span::after{top:0;transform:rotate(-45deg);}
+  /* DRAWER — animated frosted panel: always display:block so BOTH directions transition; [hidden] hides via opacity/visibility.
+     Safe-area aware (notch/home-indicator); scrolls on short viewports. */
+  .mast-drawer{display:block;pointer-events:auto;position:fixed;inset:0;z-index:99;
+     background:color-mix(in srgb,var(--abyss) 97%,transparent);
+     padding:calc(5.5rem + env(safe-area-inset-top)) max(var(--pad),env(safe-area-inset-right)) max(var(--pad),calc(env(safe-area-inset-bottom) + 1rem)) max(var(--pad),env(safe-area-inset-left));
+     overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+     opacity:1;visibility:visible;transition:opacity .34s var(--ease);}
+  .mast-drawer[hidden]{display:block;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .26s var(--ease),visibility 0s .26s;}
+  .mast-drawer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-4);}
+  .mast-drawer a{display:flex;align-items:center;min-height:48px;font-family:var(--font-display);font-size:var(--fs-h4);color:var(--text);
+     text-decoration:none;letter-spacing:var(--track-display-2);transition:color .2s var(--ease),transform .2s var(--ease-expo);}
+  @media (hover:hover){.mast-drawer a:hover{color:var(--accent-signal);}}
+  .mast-drawer a:active{color:var(--accent-signal);transform:translateX(5px);}
+  .mast-drawer a:focus-visible{outline:2px solid var(--accent-signal);outline-offset:4px;border-radius:6px;}
+  .mast-drawer a[aria-current="page"]{color:var(--accent-signal);position:relative;padding-left:.95rem;}
+  .mast-drawer a[aria-current="page"]::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:1.05em;background:var(--accent-signal);border-radius:2px;}
+  .mast-drawer .mast-cta{display:inline-flex;align-items:center;min-height:48px;font-family:var(--font-mono);font-size:var(--fs-mono-cta);margin-top:var(--space-5);padding:.8rem 1.2rem;}
+  /* staggered cascade — declared only in the OPEN state so it replays every open */
+  .mast-drawer:not([hidden]) li{animation:drawer-item-in .5s var(--ease-expo) both;}
+  .mast-drawer:not([hidden]) li:nth-child(1){animation-delay:.05s;}
+  .mast-drawer:not([hidden]) li:nth-child(2){animation-delay:.10s;}
+  .mast-drawer:not([hidden]) li:nth-child(3){animation-delay:.15s;}
+  .mast-drawer:not([hidden]) li:nth-child(4){animation-delay:.20s;}
+  .mast-drawer:not([hidden]) li:nth-child(5){animation-delay:.25s;}
+  .mast-drawer:not([hidden]) li:nth-child(6){animation-delay:.30s;}
+  .mast-drawer:not([hidden]) li:nth-child(7){animation-delay:.35s;}
+}
+@keyframes drawer-item-in{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+@media (max-width:860px) and (prefers-reduced-motion:reduce){
+  .mast-burger,.mast-burger span,.mast-burger span::before,.mast-burger span::after{transition:none;}
+  .mast-drawer{transition:opacity .12s linear;}
+  .mast-drawer[hidden]{transition:opacity .12s linear,visibility 0s .12s;}
+  .mast-drawer:not([hidden]) li{animation:none;}
+  .mast-drawer a{transition:color .12s linear;}
+}
+
+/* ---------- PAGE FLOW (lifts over the reveal footer) ---------- */
+main{position:relative;z-index:1;background:var(--bg);display:block;}
+.section{min-height:100svh;display:grid;align-content:center;gap:var(--space-5);padding:var(--section-y) var(--pad);max-width:var(--max);margin:0 auto;}
+.eyebrow{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-eyebrow);
+     text-transform:uppercase;color:var(--text-faint);display:flex;align-items:center;gap:.6rem;margin:0;}
+.eyebrow::before{content:"";width:1.4rem;height:1px;border-radius:0;background:var(--accent-signal);}
+.section h1,.section h2{font-family:var(--font-display);font-weight:700;letter-spacing:var(--track-display);line-height:var(--leading-tight);margin:0;}
+.section h1{font-size:var(--fs-h1);} .section h2{font-size:var(--fs-h2);}
+.section p{max-width:var(--measure);color:var(--text-dim);font-size:var(--fs-body-lg);margin:0;}
+
+/* ---------- FOOTER — editorial column (new design) ---------- */
+
+/* reveal-on-enter (info routes) — CSS only; JS toggles .is-in */
+.js [data-reveal]{opacity:0;transform:translateY(var(--reveal-rise,26px));transition:opacity var(--dur-mid-2) var(--ease-expo),transform var(--dur-mid-2) var(--ease-expo);}
+[data-reveal].is-in{opacity:1;transform:none;}
+/* VARIED reveal vocabulary — distinct motion per element type so entrances don't read as one uniform fade.
+   More specific than the base rule, so these win. Eyebrows additionally get a JS scramble-decode (reveal.js). */
+.js .eyebrow[data-reveal]{transform:translateX(-16px);}
+.eyebrow[data-reveal].is-in{transform:none;}
+.js :is(h1,h2,.home-h,.role-lead,.page-hero h1)[data-reveal]{clip-path:inset(0 0 108% 0);transform:translateY(10px);
+  transition:clip-path 1s var(--ease-expo),transform 1s var(--ease-expo),opacity .65s var(--ease);}
+:is(h1,h2,.home-h,.role-lead,.page-hero h1)[data-reveal].is-in{clip-path:inset(0 0 -12% 0);transform:none;}
+.js :is(.lede,p)[data-reveal]{filter:blur(9px);transform:translateY(18px);
+  transition:opacity var(--dur-mid-2) var(--ease-expo),transform var(--dur-mid-2) var(--ease-expo),filter var(--dur-mid-2) var(--ease-expo);}
+:is(.lede,p)[data-reveal].is-in{filter:none;transform:none;}
+.js :is(.bento-card,.aud-tile,.proof-tile,.process-step,.net-points li)[data-reveal]{transform:translateY(30px) scale(.982);
+  transition:opacity var(--dur-mid-2) var(--ease-expo),transform var(--dur-mid-2) var(--ease-expo);}
+:is(.bento-card,.aud-tile,.proof-tile,.process-step,.net-points li)[data-reveal].is-in{transform:none;}
+@media (prefers-reduced-motion:reduce){.js [data-reveal]{clip-path:none!important;filter:none!important;transform:none!important;}}
+@media (prefers-reduced-motion:reduce){[data-reveal]{opacity:1;transform:none;transition:none;}}
+
+/* ===================== STAGE 4 — cinematic homepage ===================== */
+/* loader */
+.boot{position:fixed;inset:0;z-index:300;display:grid;place-content:center;background:var(--abyss);transition:opacity .6s var(--ease-expo);}
+html:not(.js) .boot{display:none!important;}
+.boot.is-done{opacity:0;pointer-events:none;}
+.boot-inner{display:grid;justify-items:center;gap:1.4rem;}
+.boot-helm{width:54px;height:auto;opacity:.92;}
+.boot-meter{width:180px;height:2px;background:var(--hairline-strong);overflow:hidden;}
+.boot-fill{display:block;height:100%;background:var(--accent-signal);transform:scaleX(0);transform-origin:left center;}
+.boot-pct{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);color:var(--text-faint);margin:0;}
+.boot-skip{position:absolute;bottom:1.4rem;right:1.4rem;background:none;border:1px solid var(--hairline-strong);color:var(--text-dim);font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);text-transform:uppercase;padding:.5rem .9rem;border-radius:var(--radius-pill);cursor:pointer;}
+
+/* hero */
+.hero{position:relative;min-height:100svh;display:grid;align-content:center;padding:var(--section-y) var(--pad);max-width:var(--max);margin:0 auto;overflow:hidden;}
+.hero-bg{position:absolute;inset:0;z-index:-1;background:#000 center/cover no-repeat url("/assets/radar-plate.webp");filter:var(--grade);opacity:.5;}
+.hero-bg::after{content:"";position:absolute;inset:0;background:radial-gradient(85% 75% at 50% 50%,transparent,var(--abyss) 80%);}
+.hero-inner{display:grid;gap:var(--space-5);}
+.hero h1{font-family:var(--font-display);font-weight:800;font-size:var(--fs-display-md);letter-spacing:var(--track-display);line-height:.92;margin:0;}
+.hero-sub{font-size:var(--fs-body-lg);color:var(--text-dim);max-width:var(--measure);margin:0;}
+.hero-cue{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--accent-signal);text-decoration:none;width:max-content;}
+
+/* ONE-CUT CINEMATIC — a SINGLE pinned stage holds BOTH phases (descent + story); js/cinematic.js */
+.cinematic{position:relative;height:1100vh;background:#000;}
+.cinematic-stage{position:relative;height:100svh;overflow:hidden;background:#000;}
+/* fine grain dithers the footage's WebP gradient banding (no mix-blend — cheap, doesn't re-introduce scrub lag) */
+.cinematic-stage::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;opacity:.05;
+  background-image:var(--grain-uri);background-size:var(--grain-tile) var(--grain-tile);}
+.cinematic .descent,.cinematic #story{position:absolute;inset:0;width:100%;height:100%;}   /* both phases stack on the one stage */
+.cinematic .descent{background:#000;z-index:1;}
+.cinematic #story{background:var(--abyss);overflow:hidden;z-index:2;}
+/* phase visibility is driven inline by js/cinematic.js (stageVis). This is just the pre-JS default: story hidden. */
+.cinematic #story{opacity:0;visibility:hidden;}
+/* At the seam the swap is INSTANT and frame-continuous (frame-183 == frame-1). To stop the heavier story grade from popping,
+   it eases in over moving frames via --seam (0→1, set by cinematic.js): at --seam:0 the story tone ≈ the descent's lighter grade,
+   ramping to full by the time the camera has moved on. */
+.cinematic #story .story-grade{opacity:calc(.28 * (.6 + .4 * var(--seam, 1)));}
+.cinematic #story .story-scrim{opacity:calc(.55 + .45 * var(--seam, 1));}
+.cinematic #story .story-vignette{opacity:calc(.45 + .55 * var(--seam, 1));}
+.story-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.story-grade{position:absolute;inset:0;background:var(--abyss);opacity:.34;}   /* normal blend (was mix-blend:multiply — that recomposited every scrubbed frame) */
+.story-scrim{position:absolute;inset:0;background:linear-gradient(0deg,var(--abyss) 2%,rgba(5,9,15,.18) 40%,transparent 72%),linear-gradient(90deg,rgba(5,9,15,.68),transparent 56%);}
+.story-vignette{position:absolute;inset:0;background:radial-gradient(120% 92% at 50% 50%,transparent 54%,var(--abyss));}
+.chapters{position:absolute;inset:0;}
+.chapter{position:absolute;inset:0;display:grid;align-content:center;gap:var(--space-5);width:min(var(--max),100%);margin:0 auto;padding:var(--section-y) var(--pad);}
+.chapter h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2.1rem,5.1vw,4.4rem);letter-spacing:var(--track-display);line-height:var(--leading-tight);margin:0;text-shadow:0 2px 30px rgba(2,6,13,.8);}   /* dialled down from --fs-h1 (max 6.2rem) — this .chapter h2 rule (0,1,1) is what actually governs the pinned chapter titles, overriding .ch-title */
+.chapter p{max-width:var(--measure);color:var(--text-dim);font-size:var(--fs-body-lg);margin:0;text-shadow:0 1px 16px rgba(2,6,13,.72);}
+.story-skip{top:.6rem;left:auto;right:.6rem;}
+
+/* static fallback (reduced-motion / mobile / no-GSAP) — no pin/scrub; chapters become normal stacked sections */
+.cinematic.is-static{height:auto;}
+.cinematic.is-static .cinematic-stage{height:auto;overflow:visible;}
+.cinematic.is-static .descent{display:none;}
+.cinematic.is-static #story{position:static;opacity:1;visibility:visible;height:auto;}
+.cinematic.is-static .story-canvas,.cinematic.is-static .story-vignette,.cinematic.is-static .story-grade,.cinematic.is-static .story-scrim{display:none;}
+.cinematic.is-static .chapters{position:static;}
+.cinematic.is-static .chapter{position:relative;inset:auto;min-height:100svh;opacity:1!important;transform:none!important;}
+
+/* homepage custom cursor — Spec v1 §05 "Reticle Lock": four L-corner bracket + centre dot, tracks the pointer 1:1 (no follow lag),
+   squeezes 38→26px + tints ember on any interactive target. z-9999, mix-blend difference. JS-built (cursor.js); gated off touch + reduced-motion. */
+.rl-cursor{position:fixed;top:0;left:0;z-index:9999;opacity:0;pointer-events:none;mix-blend-mode:difference;transition:opacity .22s var(--ease-settle);}
+.rl-cursor.is-on{opacity:1;}
+.rl-box{position:absolute;top:0;left:0;transform:translate(-50%,-50%);width:38px;height:38px;transition:width .28s var(--ease-expo),height .28s var(--ease-expo);}
+.rl-c{position:absolute;width:12px;height:12px;border:0 solid var(--frost);transition:border-color .2s var(--ease-settle);}
+.rl-c.tl{top:0;left:0;border-top-width:1.5px;border-left-width:1.5px;}
+.rl-c.tr{top:0;right:0;border-top-width:1.5px;border-right-width:1.5px;}
+.rl-c.bl{bottom:0;left:0;border-bottom-width:1.5px;border-left-width:1.5px;}
+.rl-c.br{bottom:0;right:0;border-bottom-width:1.5px;border-right-width:1.5px;}
+.rl-dot{position:absolute;top:50%;left:50%;width:2px;height:2px;margin:-1px 0 0 -1px;background:var(--frost);border-radius:50%;transition:background .2s var(--ease-settle);}
+.rl-cursor.is-lock .rl-box{width:26px;height:26px;}
+.rl-cursor.is-lock .rl-c{border-color:var(--accent-live);}
+.rl-cursor.is-lock .rl-dot{background:var(--accent-live);}
+.has-cursor,.has-cursor *{cursor:none;}
+@media (pointer:coarse){.rl-cursor{display:none!important;}.has-cursor,.has-cursor *{cursor:auto!important;}}
+@media (prefers-reduced-motion:reduce){.rl-cursor{display:none!important;}.has-cursor,.has-cursor *{cursor:auto!important;}}
+@media (prefers-reduced-motion:reduce){.boot-fill{transition:none;}}
+
+/* ============ STAGE-4 REWORK: glass-collapse header · still landing · line-mask text · column+reveal footer ============ */
+
+/* HEADER — minimal instrument bar (replaced the rejected glass pill). Over the homepage cinematic the bar skin stays OFF so the
+   chrome floats transparent and never competes with the dive-lens hero; cinematic.js holds .is-collapsed for the whole cinematic
+   and lifts it at the very end, so the flat fill + cyan hairline ASSEMBLE just as the content begins. */
+.mast-word,.mast-nav a{text-shadow:var(--text-shadow-media);}   /* legible while floating over bright cinematic frames */
+.mast-nav{transition:opacity .3s var(--ease), transform .42s var(--ease-expo);}
+.mast-cta{transition:background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);}
+.mast-div{flex:none;width:1px;height:1.4em;align-self:center;background:color-mix(in srgb,var(--frost) 18%,transparent);opacity:0;}   /* divider not used by the flat bar — kept inert for markup compatibility */
+/* GHOST over the cinematic — suppress the bar skin (MUST come after .is-stuck to win). The nav stays visible (floating) so the
+   site is navigable without scrolling the whole intro; the CTA stays FILLED ember at all times (owner request — never outlined). */
+.masthead.is-collapsed .mast-pill::before{opacity:0;}
+.masthead.is-collapsed .mast-pill::after{transform:scaleX(0);}
+
+/* STILL LANDING + pinned story (8 beats incl hero=beat 0) — scroll height now lives on .cinematic */
+.ch-title{position:relative;font-family:var(--font-display);font-weight:700;letter-spacing:-.012em;line-height:1;margin:0;color:var(--text);font-size:clamp(2.1rem,5.1vw,4.4rem);}   /* dialled down from --fs-h1 (max 6.2rem) — two-line pinned titles were oversized */
+/* §06 status chip — "Decoding → Locked" instrument readout (hero chapter only; cinematic.js flips .is-locked when the headline + sub resolve) */
+.ch-status{position:absolute;top:clamp(4.6rem,12vh,7.5rem);right:var(--pad);display:flex;align-items:center;gap:.45rem;z-index:3;
+  font-family:var(--font-mono);font-size:var(--fs-mono-nano);letter-spacing:.18em;text-transform:uppercase;color:var(--text-faint);}
+.ch-status b{width:6px;height:6px;border-radius:50%;background:var(--accent-signal);transition:box-shadow .3s var(--ease);}
+.ch-status em{font-style:normal;transition:color .3s var(--ease);}
+.ch-status.is-locked b{box-shadow:0 0 8px rgba(116,198,230,.7);}
+.ch-status.is-locked em{color:var(--accent-signal);}
+.chapter-hero .ch-title{font-weight:800;font-size:clamp(2.1rem,5.1vw,4.4rem);letter-spacing:-.022em;}   /* size matched to the other chapter titles (.chapter h2) — was clamp(2.6,6.1vw,5.4) and read oversized vs the rest */
+.ch-sub{max-width:var(--measure);color:var(--text-dim);font-size:var(--fs-body-lg);margin:0;text-shadow:0 1px 16px rgba(2,6,13,.72);}
+.ch-cta{margin-top:var(--space-2);}
+.ch-cue{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--text-faint);margin:0;}
+.ch-cue span{display:inline-block;animation:cuebob 2.4s var(--ease-io) infinite;}
+@keyframes cuebob{0%,100%{transform:translateY(0);}50%{transform:translateY(5px);}}
+
+/* DECODE text entrance — per-char scramble owns the headline reveal (js/scramble.js). Lines are visible by default
+   (no-JS / reduced-motion safe); no competing line-slide or blur transition. */
+.ch-title .ln{display:block;}
+.ch-title .ln i{display:block;font-style:normal;text-shadow:0 2px 34px rgba(2,6,13,.85);}
+.ch-title .sc{display:inline-block;}
+.chapter .eyebrow,.chapter .ch-sub,.chapter .ch-cta,.chapter .ch-cue{opacity:0;transform:translateY(16px);
+  transition:opacity .8s var(--ease-expo) .15s, transform .8s var(--ease-expo) .15s;}
+.chapter.is-on .eyebrow,.chapter.is-on .ch-sub,.chapter.is-on .ch-cta,.chapter.is-on .ch-cue{opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){
+  .chapter .eyebrow,.chapter .ch-sub,.chapter .ch-cta,.chapter .ch-cue{opacity:1;transform:none;transition:none;}
+}
+#story.is-static .chapter.chapter-hero,#story.is-static .chapter{opacity:1!important;}
+#story.is-static .chapter .eyebrow,#story.is-static .chapter .ch-sub,#story.is-static .chapter .ch-cta,#story.is-static .chapter .ch-cue{opacity:1;transform:none;}
+
+/* ============ FOOTER — editorial: giant ARTIX wordmark + corner radar instrument ============ */
+/* footer bleed-in grid tuning knobs — ship these defaults (Production Integration Spec v1 · RULE 4).
+   Three things to keep right: (1) INVISIBLE seam (--footer-edge:0), (2) NO dead band — small top-space +
+   low bleed so the grid fills the gap rather than leaving a void, (3) it bleeds IN (opacity + mask), never static. */
+:root{
+  --footer-top-space:28px;     /* breathing room above content — keep small; the grid fills this band */
+  --footer-grid-bleed:14%;     /* how far down the grid reaches full strength — keep LOW so it emerges right under the seam (no void up top) */
+  --footer-grid-strength:.9;   /* final visibility of the grid once revealed */
+  --footer-reveal-dur:1.9s;    /* how slowly the grid bleeds into view */
+  --footer-edge:0;             /* seam hairline strength — 0 = INVISIBLE seam (design default); raise only if a faint divider is wanted */
+}
+.site-footer{position:relative;z-index:1;background:var(--abyss);overflow:hidden;min-height:auto;justify-content:flex-start;
+  padding:clamp(2.5rem,5vw,4rem) var(--pad) var(--space-9);
+  padding-top:calc(clamp(2.5rem,5vw,4rem) + var(--footer-top-space));   /* keep total modest — don't stack big clamp + big top-space (that made the dead band) */
+  /* INVISIBLE seam by default (--footer-edge:0): footer blends straight out of <main> with no line. edge-fading hairline only if --footer-edge > 0 */
+  border-top:1px solid transparent;
+  border-image:linear-gradient(90deg,transparent,
+    color-mix(in srgb,var(--frost) calc(var(--footer-edge) * 24%),transparent) 50%,
+    transparent) 1;}
+.footer-col{max-width:var(--max);margin:0 auto;display:grid;gap:clamp(2.4rem,6vw,4.5rem);}
+/* top editorial grid: sitemap · trust+CTA · radar */
+.footer-top{display:grid;gap:var(--space-8) var(--space-10);align-items:start;}
+@media(min-width:900px){.footer-top{grid-template-columns:.8fr 1.2fr auto;}}
+.footer-nav{display:grid;gap:.6rem;align-content:start;}
+.fn-head{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase;color:var(--text-faint);margin:0 0 .3rem;}
+.footer-nav a{font-family:var(--font-display);font-weight:600;font-size:clamp(1.05rem,1.4vw,1.3rem);letter-spacing:var(--track-display-2);
+  color:var(--text-dim);text-decoration:none;width:max-content;transition:color var(--dur-fast) var(--ease);}
+.footer-nav a:hover,.footer-nav a:focus-visible{color:var(--text);}
+.footer-trust{display:grid;gap:var(--space-5);align-content:start;}
+.footer-trust .footer-role{font-size:clamp(1.15rem,1.8vw,1.5rem);font-weight:600;max-width:36ch;}
+.footer-trust .btn{width:max-content;}
+
+/* corner radar instrument — Iceland outline + rotating SWEEP (the rotation) + helm eye (pulse loop) + live readout */
+.footer-radar{position:relative;width:clamp(156px,16vw,208px);aspect-ratio:1;justify-self:center;border-radius:50%;}
+.fr-grid{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+.fr-grid circle{fill:none;stroke:color-mix(in srgb,var(--frost) 13%,transparent);stroke-width:1;}
+.fr-grid line{stroke:color-mix(in srgb,var(--frost) 9%,transparent);stroke-width:1;}
+.fr-sweep{position:absolute;inset:0;border-radius:50%;overflow:hidden;mix-blend-mode:screen;
+  background:conic-gradient(from 0deg,transparent 300deg,color-mix(in srgb,var(--accent-signal) 28%,transparent) 348deg,color-mix(in srgb,var(--accent-signal) 60%,transparent) 360deg);
+  animation:radarSweep 5.5s linear infinite;animation-play-state:paused;}   /* perf: don't spin (conic-gradient + screen blend = per-frame repaint) until the footer scrolls into view */
+.site-footer.is-in .fr-sweep{animation-play-state:running;}
+@keyframes radarSweep{to{transform:rotate(360deg);}}
+/* the eye: Iceland ⇄ Ægishjálmur morph (js/footer-morph.js, flubber) — over the sweep, inside the rings */
+.fr-morph{position:absolute;left:50%;top:50%;width:66%;height:66%;transform:translate(-50%,-50%);overflow:visible;
+  filter:drop-shadow(0 0 9px color-mix(in srgb,var(--accent-signal) 38%,transparent));}
+/* OUTLINE only — Iceland and the Ægishjálmur read as a drawn instrument trace, not a filled glyph */
+.fr-morph .hm-shape{fill:none;stroke:color-mix(in srgb,var(--accent-signal) 90%,transparent);stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round;}
+.fr-morph .hm-detail{fill:none;stroke:var(--accent-signal);stroke-width:1.3;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round;opacity:0;}
+.fr-readout{position:absolute;left:50%;bottom:-1.55rem;transform:translateX(-50%);white-space:nowrap;margin:0;
+  font-family:var(--font-mono);font-size:var(--fs-mono-nano);letter-spacing:var(--track-label);color:var(--text-faint);}
+.fr-clock{color:var(--accent-signal);}
+/* PPI bearing + range scale (footer.js buildRadarScale) */
+.fr-tick{stroke:color-mix(in srgb,var(--frost) 24%,transparent);stroke-width:1;}
+.fr-tick-major{stroke:color-mix(in srgb,var(--accent-signal) 55%,transparent);stroke-width:1.5;}
+.fr-bearing{fill:color-mix(in srgb,var(--frost) 44%,transparent);font-family:var(--font-mono);font-size:9px;letter-spacing:.4px;text-anchor:middle;dominant-baseline:central;}
+.fr-range{fill:color-mix(in srgb,var(--frost) 30%,transparent);font-family:var(--font-mono);font-size:7.5px;text-anchor:middle;dominant-baseline:central;}
+@media (prefers-reduced-motion:reduce){.fr-sweep{animation:none;}}
+
+/* giant wordmark — the editorial anchor; ice-gradient text, clip-reveal on enter */
+/* Spec v1 §01 — footer wordmark is Michroma too; resized from the old 23rem (which assumed a CONDENSED face) so Michroma's wide caps fit the column */
+.footer-wordmark{margin:0;text-align:center;font-family:var(--font-wordmark);font-weight:400;line-height:1;
+  letter-spacing:.04em;font-size:clamp(2.4rem,13vw,11rem);white-space:nowrap;
+  background:linear-gradient(180deg,var(--frost),color-mix(in srgb,var(--frost) 24%,transparent));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  clip-path:inset(0 0 102% 0);transition:clip-path 1.1s var(--ease-expo);}
+.footer-col.is-in .footer-wordmark{clip-path:inset(0 0 -8% 0);}
+@media (prefers-reduced-motion:reduce){.footer-wordmark{clip-path:none;}}
+
+.footer-legal{display:flex;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;border-top:1px solid var(--hairline);
+  padding-top:var(--space-5);font-family:var(--font-mono);font-size:var(--fs-mono-micro);
+  letter-spacing:var(--track-mono-ui);color:var(--text-dim);}
+.footer-legal-nav a{margin-left:var(--space-4);color:var(--text-dim);text-decoration:none;}
+
+/* THE GRID — one pseudo-element. Seamless 54px square tile (1px frost-at-6.5% line, identical on both axes),
+   bleeds off all four edges, emerges from the top via the mask, fades out at the bottom (Spec v1 · RULE 4) */
+.site-footer::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  opacity:0;
+  background-image:
+    repeating-linear-gradient(90deg,transparent 0 53px,color-mix(in srgb,var(--frost) 6.5%,transparent) 53px 54px),
+    repeating-linear-gradient(0deg,transparent 0 53px,color-mix(in srgb,var(--frost) 6.5%,transparent) 53px 54px);
+  transition:opacity var(--footer-reveal-dur) var(--ease) .15s;   /* bleeds into view with the footer */
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,
+    rgba(0,0,0,.35) calc(var(--footer-grid-bleed) * .42),
+    #000 var(--footer-grid-bleed), #000 88%, transparent 100%);
+          mask-image:linear-gradient(180deg,transparent 0,
+    rgba(0,0,0,.35) calc(var(--footer-grid-bleed) * .42),
+    #000 var(--footer-grid-bleed), #000 88%, transparent 100%);}
+/* reveal: footer scrolls in → grid bleeds to its final strength */
+.site-footer.is-in::before{opacity:var(--footer-grid-strength);}
+/* accessibility: no fade, grid shown at final strength */
+@media (prefers-reduced-motion:reduce){.site-footer::before{transition:none;opacity:var(--footer-grid-strength);}}
+.footer-col{position:relative;z-index:1;}   /* sit above the blueprint grid */
+/* footer reveal — STAGGERED: each block rises in turn for a premium entrance (footer.js toggles .is-in on .footer-col) */
+.js .site-footer :is(.footer-nav,.footer-trust,.footer-radar,.footer-wordmark,.footer-legal){opacity:0;transform:translateY(24px);transition:opacity .9s var(--ease-expo),transform .9s var(--ease-expo);}
+.site-footer .footer-col.is-in :is(.footer-nav,.footer-trust,.footer-radar,.footer-wordmark,.footer-legal){opacity:1;transform:none;}
+.site-footer .footer-col.is-in .footer-nav{transition-delay:.04s;}
+.site-footer .footer-col.is-in .footer-trust{transition-delay:.16s;}
+.site-footer .footer-col.is-in .footer-radar{transition-delay:.30s;}
+.site-footer .footer-col.is-in .footer-wordmark{transition-delay:.44s;}
+.site-footer .footer-col.is-in .footer-legal{transition-delay:.54s;}
+@media (prefers-reduced-motion:reduce){.js .site-footer :is(.footer-nav,.footer-trust,.footer-radar,.footer-wordmark,.footer-legal){opacity:1;transform:none;}}
+
+/* ============ CRAFT PASS: atmosphere · live-instrument progress rail ============ */
+/* eyebrow: a hairline that draws in beside the index */
+.chapter .eyebrow{position:relative;color:var(--accent-live);font-size:var(--fs-mono-nano);}   /* owner request: brand-orange + a lot smaller (nano 0.56rem, was label 0.72rem) */
+.chapter .eyebrow::before{display:none;}   /* owner request: remove the leading tick/dash */
+.chapter .eyebrow::after{content:"";position:absolute;left:0;bottom:-0.7rem;height:1px;width:clamp(3rem,7vw,7rem);
+  background:linear-gradient(90deg,var(--accent-signal),transparent);transform:scaleX(0);transform-origin:left;opacity:.6;
+  transition:transform .9s var(--ease-expo) .25s;}
+.chapter.is-on .eyebrow::after{transform:scaleX(1);}
+.ch-sub{transition:opacity .9s var(--ease-expo) .28s, transform .9s var(--ease-expo) .28s;}
+
+/* (story grain removed — .cinematic-stage::after already grains the whole stage, and mix-blend:overlay here recomposited every scrubbed frame) */
+.story-vignette{background:radial-gradient(125% 95% at 50% 46%,transparent 48%,rgba(5,9,15,.72));}
+
+/* live-instrument progress rail (homepage only) */
+.story-rail{position:fixed;right:clamp(1.1rem,2.6vw,2.6rem);top:50%;transform:translateY(-50%);z-index:60;
+  display:flex;flex-direction:column;align-items:center;gap:.7rem;opacity:0;transition:opacity .6s var(--ease);
+  font-family:var(--font-mono);font-size:var(--fs-mono-nano);letter-spacing:var(--track-label);color:var(--text-faint);}
+.story-rail.is-on{opacity:1;}
+.story-rail-track{position:relative;width:1px;height:34vh;background:var(--hairline-strong);overflow:hidden;}
+.story-rail-fill{position:absolute;inset:0;background:linear-gradient(180deg,var(--accent-signal),color-mix(in srgb,var(--accent-signal) 40%,transparent));
+  transform:scaleY(0);transform-origin:top;}
+@media (max-width:860px){.story-rail{display:none;}}
+@media (prefers-reduced-motion:reduce){.ch-title .ln i{filter:none;}}
+
+/* ============================================================================
+   POST-CINEMATIC SEQUENCE — substance + conversion layer (Stage 5)
+   Composes the existing bento-grid / bento-card / btn / eyebrow / lede on a
+   shared section rhythm. Cold-instrument throughout; ember stays on the CTA.
+   ============================================================================ */
+.home-section{position:relative;max-width:var(--max);margin-inline:auto;padding:var(--section-y) var(--pad);}
+.home-head{max-width:64ch;margin-bottom:var(--space-12);}
+.home-h{color:var(--text);max-inline-size:22ch;margin:.2rem 0 0;}
+.home-head .lede{margin-top:var(--space-5);}
+
+/* ---- A · connector feature card (content-only bento-card) ---- */
+.bento-card.feature .bento-body{gap:var(--space-3);}
+.bento-card.feature .bento-line{flex:none;}
+/* vertical accountable-line track — fills the 2-row feature height as a designed instrument */
+.lifecycle{list-style:none;position:relative;display:flex;flex-direction:column;flex:1;justify-content:center;
+  gap:clamp(.7rem,1.5vw,1.25rem);margin:var(--space-6) 0;padding-left:1.6rem;}
+.lifecycle::before{content:"";position:absolute;left:3.5px;top:.5rem;bottom:.5rem;width:1px;
+  background:linear-gradient(180deg,var(--accent-signal),var(--hairline-strong) 78%,transparent);
+  transform:scaleY(0);transform-origin:top;transition:transform 1.2s var(--ease-expo) .15s;}
+.bento-card.feature.is-in .lifecycle::before{transform:scaleY(1);}
+.lifecycle li{position:relative;display:flex;align-items:baseline;gap:.85rem;
+  opacity:0;transform:translateX(-10px);transition:opacity .6s var(--ease-expo),transform .6s var(--ease-expo);}
+.bento-card.feature.is-in .lifecycle li{opacity:1;transform:none;}
+.bento-card.feature.is-in .lifecycle li:nth-child(1){transition-delay:.30s;}
+.bento-card.feature.is-in .lifecycle li:nth-child(2){transition-delay:.42s;}
+.bento-card.feature.is-in .lifecycle li:nth-child(3){transition-delay:.54s;}
+.bento-card.feature.is-in .lifecycle li:nth-child(4){transition-delay:.66s;}
+.bento-card.feature.is-in .lifecycle li:nth-child(5){transition-delay:.78s;}
+.bento-card.feature.is-in .lifecycle li:nth-child(6){transition-delay:.90s;}
+.lifecycle li::before{content:"";position:absolute;left:-1.6rem;top:.45em;width:7px;height:7px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--hairline-strong);
+  transition:border-color var(--dur-mid) var(--ease),box-shadow var(--dur-mid) var(--ease);}
+.bento-card.feature.is-in .lifecycle li::before{border-color:var(--accent-signal);}
+.bento-card.feature.is-in .lifecycle li:last-child::before{box-shadow:var(--glow-ice);}
+.lc-no{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:.18em;color:var(--text-faint);font-variant-numeric:tabular-nums;min-width:1.9em;}
+.lc-label{font-family:var(--font-mono);font-size:var(--fs-mono-nav);letter-spacing:.1em;text-transform:uppercase;color:var(--text);}
+.bento-card.feature .bento-go{margin-top:0;}
+
+/* ---- BORDER GLOW — ICE/cyan, cursor-following (React Bits "BorderGlow", JS-CSS hover mode, recreated vanilla) ----
+   js/card-glow.js sets --cg-edge (0–100 edge proximity) + --cg-angle (cursor bearing, deg) on pointermove and adds .cg-on.
+   A conic-gradient mask reveals the ice border ring (::before) + inner bloom (::after) only in the wedge facing the cursor,
+   so the glow travels around the border under the pointer. Contained inside the card's overflow:hidden (no external bloom).
+   REPLACES the old static full-perimeter ice hover ring (the --c-card-ring box-shadow), now scoped to keyboard :focus-visible only. */
+.bento-card{--cg-edge:0;--cg-angle:45deg;--cg-sens:30;}
+.bento-card.cg-on::before,
+.bento-card.cg-on::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;   /* above the media (z~0), below the text body (z-3) */
+  opacity:calc((var(--cg-edge) - var(--cg-sens)) / (100 - var(--cg-sens)));   /* fades in as the cursor nears an edge; negative → clamps to 0 */
+  transition:opacity .28s ease-out;}
+.bento-card.cg-on::before{border:1px solid var(--accent-signal);   /* the ice border ring — narrow wedge at the cursor bearing */
+  -webkit-mask-image:conic-gradient(from var(--cg-angle) at 50% 50%,#000 2%,transparent 11%,transparent 89%,#000 98%);
+          mask-image:conic-gradient(from var(--cg-angle) at 50% 50%,#000 2%,transparent 11%,transparent 89%,#000 98%);}
+.bento-card.cg-on::after{   /* the inner ice bloom — softer, wider wedge bleeding in from the lit edge */
+  box-shadow:inset 0 0 12px 0 color-mix(in srgb,var(--accent-signal) 42%,transparent),
+             inset 0 0 30px 2px color-mix(in srgb,var(--accent-signal) 22%,transparent);
+  -webkit-mask-image:conic-gradient(from var(--cg-angle) at 50% 50%,transparent 5%,#000 16%,#000 84%,transparent 95%);
+          mask-image:conic-gradient(from var(--cg-angle) at 50% 50%,transparent 5%,#000 16%,#000 84%,transparent 95%);}
+@media (prefers-reduced-motion:reduce){.bento-card.cg-on::before,.bento-card.cg-on::after{display:none;}}
+
+/* ---- B · audience grid ---- */
+.aud-grid{list-style:none;margin:0;padding:0;display:grid;gap:var(--grid-gap);
+  grid-template-columns:repeat(auto-fit,minmax(15.5rem,1fr));}
+.aud-tile{position:relative;display:flex;flex-direction:column;gap:.55rem;padding:var(--space-6) var(--space-6) var(--space-7);
+  border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--c-card-bg);overflow:hidden;
+  transition:border-color var(--dur-mid) var(--ease),background var(--dur-mid) var(--ease),transform var(--dur-mid-2) var(--ease-expo),box-shadow var(--dur-mid-2) var(--ease-expo);}
+.aud-tile::before{content:"";position:absolute;top:0;left:0;height:2px;width:0;background:var(--accent-signal);transition:width var(--dur-mid-2) var(--ease-expo);}
+.aud-tile:hover,.aud-tile:focus-within{transform:translateY(-3px);border-color:var(--hairline-strong);background:var(--c-card-bg-hover);box-shadow:var(--glow-ice);}
+.aud-tile:hover::before,.aud-tile:focus-within::before{width:100%;}
+.aud-no{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:.2em;color:var(--text-faint);font-variant-numeric:tabular-nums;}
+.aud-tile:hover .aud-no{color:var(--accent-signal);}
+.aud-name{font-family:var(--font-display);font-weight:var(--weight-display-bold);font-size:var(--fs-h4);letter-spacing:var(--track-display-2);line-height:var(--leading-tight);color:var(--text);margin:0;}
+.aud-line{font-family:var(--font-body);font-size:var(--fs-body-sm);line-height:var(--leading-snug);color:var(--text-dim);margin:0;max-inline-size:34ch;}
+
+/* ---- C · vetted network band (full-bleed) ---- */
+.home-section.network,.home-section.closing{max-width:none;margin:0;padding:0;width:100%;overflow:hidden;isolation:isolate;}
+.net-media,.closing-media{position:absolute;inset:0;z-index:0;}
+.net-media img,.closing-media img{position:absolute;top:-10%;left:0;width:100%;height:120%;object-fit:cover;will-change:transform;}
+.net-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(5,9,15,.95) 0%,rgba(5,9,15,.82) 50%,rgba(5,9,15,.6) 100%),linear-gradient(0deg,var(--bg),transparent 42%);}
+.net-inner{position:relative;z-index:2;max-width:var(--max);margin-inline:auto;padding:var(--section-y-lg) var(--pad);}
+.net-inner .home-h{max-inline-size:20ch;}
+.net-inner .lede{margin-top:var(--space-5);max-inline-size:48rem;}
+.network .eyebrow,.closing .eyebrow{color:var(--accent-signal);}
+.net-inner .home-h,.net-inner .lede,.net-inner .np-k,.net-inner .np-v,.network .eyebrow{text-shadow:var(--text-shadow-media);}
+.net-points{list-style:none;margin:var(--space-10) 0 var(--space-10);padding:0;display:grid;gap:0;max-width:46rem;}
+.net-points li{display:grid;grid-template-columns:9.5rem 1fr;gap:var(--space-4);align-items:baseline;
+  padding:var(--space-4) 0;border-top:1px solid var(--hairline);}
+.net-points li:last-child{border-bottom:1px solid var(--hairline);}
+.np-k{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--accent-signal);}
+.np-v{font-family:var(--font-body);font-size:var(--fs-body-lg);color:var(--text);}
+
+/* ---- D · proof & standing readouts ---- */
+.proof-grid{margin:0;display:grid;gap:var(--grid-gap);grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));}
+.proof-tile{position:relative;padding:var(--space-5) 0 var(--space-6);border-top:1px solid var(--hairline-strong);
+  transition:border-color var(--dur-mid) var(--ease);}
+.proof-tile:hover{border-top-color:var(--accent-signal);}
+.pt-k{display:block;font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--text-faint);margin-bottom:var(--space-3);}
+.pt-v{margin:0;font-family:var(--font-display);font-weight:var(--weight-display-bold);font-size:var(--fs-h4);letter-spacing:var(--track-display-2);line-height:var(--leading-tight);color:var(--text);}
+.pt-v.mono{font-family:var(--font-mono);font-weight:var(--weight-mono-strong);letter-spacing:.08em;color:var(--accent-signal);font-variant-numeric:tabular-nums;}
+.pt-n{margin:.5rem 0 0;font-family:var(--font-body);font-size:var(--fs-body-sm);line-height:var(--leading-snug);color:var(--text-dim);}
+
+/* ---- E · request-a-briefing closing CTA (full-bleed, centered) ---- */
+.closing-media img{filter:var(--grade-dim);}
+.closing-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 50%,rgba(5,9,15,.72),rgba(5,9,15,.94) 92%),linear-gradient(0deg,var(--bg),transparent 55%);}
+.closing-inner{position:relative;z-index:2;max-width:60rem;margin-inline:auto;padding:var(--section-y-lg) var(--pad);text-align:center;
+  display:flex;flex-direction:column;align-items:center;}
+.closing-inner .closing-h,.closing-inner .lede,.closing .eyebrow,.closing-coord{text-shadow:var(--text-shadow-media);}
+.closing-h{font-family:var(--font-display);font-weight:var(--weight-display-black);font-size:var(--fs-display-md);
+  letter-spacing:var(--track-display);line-height:var(--leading-display);color:var(--text);margin:.2rem 0 0;max-inline-size:16ch;}
+.closing-inner .lede{margin-top:var(--space-5);color:var(--text-dim);text-align:center;}
+.closing-actions{display:flex;flex-wrap:wrap;gap:var(--space-4);justify-content:center;margin-top:var(--space-10);}
+.closing-coord{margin-top:var(--space-10);color:var(--text-faint);}
+
+@media (max-width:560px){
+  .net-points li{grid-template-columns:1fr;gap:.3rem;}
+  .closing-actions{flex-direction:column;align-items:stretch;width:100%;max-width:22rem;}
+  .closing-actions .btn{justify-content:center;}
+}
+@media (prefers-reduced-motion:reduce){
+  .lifecycle::before{transform:scaleY(1);}
+  .lifecycle li{opacity:1;transform:none;}
+  .aud-tile,.proof-tile{transition:none;}
+  [data-parallax]{transform:none!important;}
+}
+/* in-cinematic chapter section links — quiet ice ghost (ember reserved for the masthead + closing CTA) */
+.ch-link{display:inline-flex;align-items:center;gap:.6rem;font-family:var(--type-cta-family);font-size:var(--fs-mono-nav);
+  font-weight:var(--weight-mono-strong);letter-spacing:var(--track-cta);text-transform:uppercase;color:var(--text);
+  padding:.7rem 1.1rem;border:1px solid var(--hairline-strong);border-radius:var(--radius-btn);min-height:40px;
+  transition:border-color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);}
+.ch-link:hover,.ch-link:focus-visible{border-color:var(--accent-signal);background:color-mix(in srgb,var(--ice) 7%,transparent);}
+.ch-link .btn-arrow{transition:transform var(--dur-mid) var(--ease-expo);}
+.ch-link:hover .btn-arrow,.ch-link:focus-visible .btn-arrow{transform:translateX(5px);}
+/* comfortable hit areas (a11y) */
+.boot-skip{min-height:44px;display:inline-flex;align-items:center;}
+.footer-legal-nav a{display:inline-block;padding:.4rem .15rem;}
+
+/* ============================================================================
+   INNER PAGES — elevated page hero + process ledger (reuse home-section/components)
+   ============================================================================ */
+.page-hero{position:relative;min-height:clamp(56svh,68vh,82svh);display:flex;align-items:flex-end;overflow:hidden;isolation:isolate;}
+.page-hero-media{position:absolute;inset:0;z-index:0;}
+.page-hero-media img{width:100%;height:100%;object-fit:cover;}
+.page-hero-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(0deg,var(--bg) 3%,rgba(5,9,15,.55) 38%,rgba(5,9,15,.2) 100%),linear-gradient(90deg,rgba(5,9,15,.78),rgba(5,9,15,.25) 62%,transparent);}
+.page-hero-inner{position:relative;z-index:2;max-width:var(--max);margin-inline:auto;width:100%;padding:var(--section-y-lg) var(--pad) var(--section-y);}
+.page-hero h1{font-family:var(--font-display);font-weight:var(--weight-display-black);font-size:var(--fs-display-md);
+  letter-spacing:var(--track-display);line-height:var(--leading-display);color:var(--text);max-inline-size:17ch;margin:.3rem 0 0;
+  text-shadow:var(--text-shadow-media);}
+.page-hero .eyebrow{color:var(--accent-signal);text-shadow:var(--text-shadow-media);}
+.page-hero .lede{margin-top:var(--space-5);color:var(--text);max-inline-size:54ch;text-shadow:var(--text-shadow-media);}
+@media (prefers-reduced-motion:no-preference){
+  .page-hero-media img{animation:heroDrift 26s var(--ease-io) infinite alternate;transform-origin:50% 40%;}
+}
+@keyframes heroDrift{from{transform:scale(1.03) translateY(0);}to{transform:scale(1.09) translateY(-1.6%);}}
+
+/* process ledger — numbered instrument rows with descriptions (Capabilities) */
+.process{list-style:none;margin:0;padding:0;}
+.process-step{position:relative;display:grid;grid-template-columns:clamp(2.4rem,5vw,4rem) 1fr;gap:clamp(1rem,3vw,2.4rem);
+  align-items:start;padding:var(--space-7) 0;border-top:1px solid var(--hairline);
+  transition:border-color var(--dur-mid) var(--ease);}
+.process-step:last-child{border-bottom:1px solid var(--hairline);}
+.process-step:hover{border-top-color:var(--accent-signal);}
+.process-no{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:.18em;color:var(--text-faint);
+  font-variant-numeric:tabular-nums;padding-top:.55rem;transition:color var(--dur-mid) var(--ease);}
+.process-step:hover .process-no{color:var(--accent-signal);}
+.process-body h3{font-family:var(--font-display);font-weight:var(--weight-display-bold);font-size:var(--fs-h3);
+  letter-spacing:var(--track-display-2);line-height:var(--leading-tight);color:var(--text);margin:0 0 .55rem;}
+.process-body p{font-family:var(--font-body);font-size:var(--fs-body-md);line-height:var(--leading-body);color:var(--text-dim);margin:0;max-inline-size:62ch;}
+
+/* compact closing CTA row — inner pages */
+.cta-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-6);
+  border-top:1px solid var(--hairline-strong);padding-top:var(--space-10);}
+.cta-row .home-h{margin-top:.3rem;max-inline-size:18ch;}
+.cta-row .btn{flex:none;}
+
+/* domain / feature tiles reused on inner pages inherit .aud-grid/.aud-tile + .proof-grid from the home block */
+
+/* contact page — aside + intake form */
+.contact-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:clamp(2rem,5vw,4rem);align-items:start;}
+.contact-aside .home-h{max-inline-size:14ch;margin:.2rem 0 var(--space-6);}
+.contact-meta{margin:var(--space-6) 0;padding:0;display:grid;gap:0;}
+.contact-meta > div{display:grid;grid-template-columns:6rem 1fr;gap:var(--space-3);align-items:baseline;
+  border-top:1px solid var(--hairline);padding:var(--space-3) 0;font-family:var(--font-body);font-size:var(--fs-body-sm);color:var(--text-dim);}
+.cm-k{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--accent-signal);margin:0;}
+.contact-meta dd{margin:0;}
+.contact-meta a{color:var(--text);display:inline-block;padding:.1rem 0;}
+.contact-meta a:hover{color:var(--accent-signal);}
+.contact-note{font-family:var(--font-mono);font-size:var(--fs-mono-nav);line-height:var(--leading-body);color:var(--text-faint);max-inline-size:42ch;margin:0;}
+@media (max-width:860px){.contact-grid{grid-template-columns:1fr;}}
+
+/* active / current-page nav (you-are-here) + comfortable hit areas */
+.mast-nav a{display:inline-flex;align-items:center;min-height:40px;}
+.mast-nav a[aria-current="page"]{color:var(--text);}
+.mast-nav li{position:relative;}
+/* sleek animated underline — an ICE line that wipes in from the left under the hovered link, retracts to the right on leave,
+   and stays lit under the current page. transform-only (GPU) so it stays crisp; subtle ice glow matches the instrument signature. */
+.mast-nav a::after{content:"";position:absolute;left:0;right:0;bottom:9px;height:1.5px;border-radius:2px;   /* bottom:9px sits the line ~3px under the text — the link is a 40px-tall centred hit area, so a box-bottom anchor floated ~13px too low */
+  background:var(--accent-signal);box-shadow:0 0 8px color-mix(in srgb,var(--accent-signal) 55%,transparent);
+  transform:scaleX(0);transform-origin:right center;transition:transform .36s var(--ease-expo);}
+.mast-nav a:hover::after,.mast-nav a:focus-visible::after{transform:scaleX(1);transform-origin:left center;}
+.mast-nav a[aria-current="page"]::after{transform:scaleX(1);transform-origin:left center;}
+@media (prefers-reduced-motion:reduce){.mast-nav a::after{transition:none;}}
+.mast-drawer a[aria-current="page"]{color:var(--accent-signal);}
+.footer-meta a{display:inline-block;padding:.15rem 0;}
+
+/* inner-page editorial "role" band (About) — a distinct second module */
+.role-band{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,5vw,4rem);align-items:start;}
+.role-band .role-lead{font-family:var(--font-display);font-weight:var(--weight-display-semibold);font-size:var(--fs-h4);
+  letter-spacing:var(--track-display-2);line-height:var(--leading-heading);color:var(--text);margin:0;max-inline-size:22ch;}
+.role-band .role-body p{font-family:var(--font-body);font-size:var(--fs-body-md);line-height:var(--leading-prose);color:var(--text-dim);margin:0 0 var(--space-4);max-inline-size:60ch;}
+.role-band .role-body p:last-child{margin-bottom:0;}
+@media (max-width:780px){.role-band{grid-template-columns:1fr;gap:var(--space-6);}}
+
+/* ============ CONNECTOR FLOW — V03 "Phased relay": fine hairline + one calm pulse per segment + a pulsing ARTIX helm hub.
+   Manufacturers (01) → ARTIX helm (02) → End-users (03). Ice pulse on segment 1, ember-hot on segment 2 (arrival/live),
+   delayed +P/2 so it reads as ONE travelling packet. Driven by connect-beams.js (.is-flowing in view / .flow-static fallback). */
+.home-section.flow .flow-diagram{--P:5.4s;--P-half:2.7s;--helm-size:clamp(30px,4vw,38px);  /* Spec v1 §03 MUST-match: 38px helm at the design size (clamps down on narrow) */
+  position:relative;display:flex;align-items:center;justify-content:center;gap:clamp(.7rem,2vw,1.4rem);
+  max-width:min(var(--max),940px);margin:clamp(2.5rem,6vw,4.5rem) auto 0;}
+.cf-stage{position:relative;display:inline-flex;align-items:center;justify-content:center;height:var(--helm-size);flex:0 0 auto;white-space:nowrap;}
+.cf-num{position:absolute;left:0;right:0;bottom:calc(100% + .55rem);text-align:center;padding-left:.24em;
+  font-family:var(--font-mono);font-size:clamp(.62rem,.8vw,.72rem);letter-spacing:.24em;font-variant-numeric:tabular-nums;
+  color:color-mix(in srgb,var(--accent-signal) 85%,transparent);}
+.cf-hub-stage .cf-num{color:var(--accent-live-hot);}   /* 02 hub index — the lone warm label, marks the live hand-off */
+.cf-label{font-family:var(--font-display);font-weight:600;font-size:clamp(1rem,1.6vw,1.18rem);letter-spacing:.06em;text-transform:uppercase;color:var(--text);line-height:1;}
+.cf-helm{height:var(--helm-size);width:auto;display:block;transform-origin:center center;
+  filter:drop-shadow(0 0 11px color-mix(in srgb,var(--accent-signal) 24%,transparent));}
+.cf-seg{position:relative;flex:1 1 auto;min-width:40px;max-width:240px;height:8px;}
+.cf-rail{position:absolute;left:0;right:0;top:50%;height:1px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--accent-signal) 6%,transparent),color-mix(in srgb,var(--accent-signal) 30%,transparent),color-mix(in srgb,var(--accent-signal) 6%,transparent));}
+.cf-pulse{position:absolute;top:50%;margin-top:-3px;left:0;width:6px;height:6px;border-radius:50%;opacity:0;
+  background:var(--accent-signal);box-shadow:0 0 9px 1px color-mix(in srgb,var(--accent-signal) 60%,transparent);}
+.cf-seg-2 .cf-pulse{background:var(--accent-live);box-shadow:0 0 9px 1px color-mix(in srgb,var(--accent-live) 55%,transparent);}   /* Spec v1 §03: seg-2 pulse = --accent-live #FF6A00 (arrival/live) */
+/* relay + helm charge run ONLY while the section is in view (connect-beams.js toggles .is-flowing) */
+.flow-diagram.is-flowing .cf-seg-1 .cf-pulse{animation:cfRelay var(--P) ease-in-out infinite;}
+.flow-diagram.is-flowing .cf-seg-2 .cf-pulse{animation:cfRelay var(--P) ease-in-out infinite;animation-delay:var(--P-half);}
+@keyframes cfRelay{0%{left:-3%;opacity:0;}7%{opacity:1;}43%{left:103%;opacity:1;}50%{opacity:0;}100%{left:103%;opacity:0;}}
+@keyframes cfHelmPulse{
+  0%,40%{transform:scale(1);filter:drop-shadow(0 0 11px color-mix(in srgb,var(--accent-signal) 22%,transparent));}
+  50%{transform:scale(1.13);filter:drop-shadow(0 0 22px color-mix(in srgb,var(--accent-signal) 62%,transparent));}
+  60%,100%{transform:scale(1);filter:drop-shadow(0 0 11px color-mix(in srgb,var(--accent-signal) 22%,transparent));}}
+/* mobile: stack vertically, rails turn vertical, hide the moving pulse */
+@media(max-width:768px){
+  .home-section.flow .flow-diagram{flex-direction:column;gap:clamp(26px,7vw,40px);}
+  .cf-seg{flex:none;width:8px;height:clamp(30px,8vw,46px);min-width:0;max-width:none;}
+  .cf-rail{left:50%;right:auto;top:0;bottom:0;width:1px;height:auto;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent-signal) 6%,transparent),color-mix(in srgb,var(--accent-signal) 30%,transparent),color-mix(in srgb,var(--accent-signal) 6%,transparent));}
+  .cf-pulse{display:none;}
+}
+/* static (no-JS) / reduced-motion — hairline + helm hold, no motion */
+.flow-diagram.flow-static .cf-pulse{display:none;}
+@media (prefers-reduced-motion:reduce){.flow-diagram .cf-pulse{display:none;}.flow-diagram .cf-helm{animation:none;}}
+
+/* ============ ORBITAL DESCENT — opening of the ONE-CUT scroll cinematic (js/descent.js) ============ */
+/* a pinned, scroll-scrubbed canvas (assets/descent-frames) that lands on story frame-0001 and flows straight into #story */
+.descent{position:absolute;inset:0;background:#000;}   /* PHASE-1 stage inside .cinematic-stage — no longer its own scroll section */
+.descent-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+/* WebGL push-through (js/dive-lens.js) renders the lens + the crystalline-ice ARTIX wordmark ITSELF on the canvas, so the
+   legacy DOM brand/coord/grade/scan overlays are hidden under .is-lens. Only the live telemetry datum stays. */
+.descent.is-lens .descent-brand,
+.descent.is-lens .descent-coord,
+.descent.is-lens .descent-grade,
+.descent.is-lens .descent-scan{display:none!important;}
+.descent-grade{position:absolute;inset:0;background:rgba(5,9,15,.18);pointer-events:none;}
+.descent-scrim{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(125% 95% at 50% 48%,transparent 50%,rgba(5,9,15,.6) 100%),linear-gradient(0deg,var(--abyss) 2%,transparent 32%);}
+/* satellite scan-line — sweeps the surface during acquisition, stops at lock */
+.descent-scan{position:absolute;left:0;right:0;top:0;height:2px;z-index:1;pointer-events:none;opacity:0;mix-blend-mode:screen;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent-signal) 75%,transparent) 30%,color-mix(in srgb,var(--frost) 82%,transparent),color-mix(in srgb,var(--accent-signal) 75%,transparent) 70%,transparent);
+  box-shadow:0 0 22px 2px color-mix(in srgb,var(--accent-signal) 36%,transparent);}
+.descent.is-on:not(.is-locked) .descent-scan{animation:descentScan 3.6s var(--ease-io) infinite;}
+@keyframes descentScan{0%{transform:translateY(-6vh);opacity:0;}12%{opacity:.6;}88%{opacity:.6;}100%{transform:translateY(106vh);opacity:0;}}
+/* centered ARTIX title card — RESOLVES out of the telemetry as the loader clears, locks (ember) at the coast, lifts on land */
+.descent-brand{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:.6rem;text-align:center;z-index:2;
+  opacity:0;text-shadow:0 2px 40px rgba(2,6,13,.85);transition:opacity .9s var(--ease-expo),transform .9s var(--ease-expo);}
+.descent.is-revealed .descent-brand{opacity:1;}
+/* helm mark removed from the hero (owner) — ARTIX wordmark stands alone; .descent-mark styles + dscLockPulse keyframes deleted as dead */
+.descent-word{font-family:var(--font-wordmark);font-weight:400;font-size:clamp(2.8rem,7.5vw,6rem);line-height:1;margin:.4rem 0 0;color:var(--frost);
+  letter-spacing:.22em;padding-right:.06em;opacity:0;text-shadow:0 2px 34px rgba(2,6,13,.7);transition:letter-spacing 1.1s var(--ease-expo) .1s,opacity .8s var(--ease-expo) .1s,color .5s var(--ease);}
+.descent.is-revealed .descent-word{letter-spacing:.06em;opacity:1;}
+.descent.is-locked .descent-word{color:#fff;}
+.descent-word .sc{display:inline-block;}
+.descent-sub{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--text-dim);margin:0;
+  opacity:0;clip-path:inset(0 100% 0 0);transition:opacity .7s var(--ease) .42s,clip-path 1s var(--ease-expo) .42s;}
+.descent.is-revealed .descent-sub{opacity:1;clip-path:inset(0 -2% 0 0);}
+/* (the centred lock-reticle was removed; the coastline range-gate that replaced it is also removed — owner has a different idea
+   for this spot. The baked footage already carries the targeting crosshair/rings.) */
+/* coordinate readout — decodes to LOCK at the coast */
+.descent-coord{position:absolute;left:50%;bottom:clamp(2.2rem,9vh,5rem);transform:translateX(-50%);margin:0;white-space:nowrap;z-index:2;
+  font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--text-faint);
+  text-shadow:0 1px 16px rgba(2,6,13,.8);}
+.descent-coord .dc-status{color:var(--accent-signal);transition:color .5s var(--ease-settle);}   /* ACQUIRING (ice) → LOCK (ember), text swapped by cinematic.js */
+.descent.is-locked .descent-coord .dc-status{color:var(--accent-live);}
+/* recon-feed HUD — a live tactical UI over the footage; dissolves as the photoreal Earth resolves and the dive begins */
+.descent-hud{position:absolute;inset:clamp(14px,2.4vw,30px);z-index:1;pointer-events:none;transition:opacity .6s var(--ease);}
+/* one bottom-left LIVE DATUM (replaces the four camera-corner brackets): RECON·LIVE + falling altitude/velocity readouts.
+   The numbers fall as you descend (setTelemetry in cinematic.js) so it reads as a real instrument, not a viewfinder frame. */
+.dh-datum{position:absolute;bottom:0;left:clamp(2px,2vw,20px);display:flex;flex-direction:column;gap:.3rem;}
+.dh-tag{margin:0;display:flex;align-items:center;gap:.5rem;
+  font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--accent-signal);}
+.dh-dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--accent-live);box-shadow:0 0 8px var(--accent-live);animation:dhBlink 1.4s steps(1) infinite;}
+.dh-read{margin:0;font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);
+  color:var(--text-faint);display:flex;align-items:baseline;gap:.45rem;font-variant-numeric:tabular-nums;}
+.dh-read .dh-k{color:color-mix(in srgb,var(--accent-signal) 68%,transparent);}
+.dh-read b{font-weight:400;color:var(--frost);min-width:3.4ch;text-align:right;}
+.dh-read .dh-u{color:var(--text-faint);font-size:.85em;}
+@keyframes dhBlink{0%,58%{opacity:1;}59%,100%{opacity:.2;}}
+@media (prefers-reduced-motion:reduce){.dh-dot{animation:none;}}
+/* ARTIX FREEZE — the wordmark crystallises to ice on lock, then the camera zooms through it */
+.descent.is-frozen .descent-word{color:#e9f5ff;
+  text-shadow:0 0 1px rgba(255,255,255,.95),0 1px 0 rgba(255,255,255,.5),0 0 10px color-mix(in srgb,var(--accent-signal) 78%,transparent),0 0 26px color-mix(in srgb,var(--accent-signal) 42%,transparent),1px 1px 0 rgba(188,224,245,.6),-1px -1px 0 rgba(255,255,255,.45);
+  filter:url(#dscFrost) drop-shadow(0 0 3px rgba(205,234,247,.55));
+  transition:color 1.15s var(--ease),text-shadow 1.15s var(--ease);}   /* crystallises in gently, not a hard snap */
+/* no-JS — drop the canvas intro, let the chapters read as normal stacked sections (content stays visible) */
+html:not(.js) .descent{display:none;}
+html:not(.js) .cinematic,html:not(.js) .cinematic-stage{height:auto;overflow:visible;}
+html:not(.js) #story{position:static;opacity:1;visibility:visible;height:auto;}
+html:not(.js) .story-canvas,html:not(.js) .story-vignette,html:not(.js) .story-grade,html:not(.js) .story-scrim{display:none;}
+html:not(.js) .chapters{position:static;}
+html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){.cinematic .descent{display:none;}}
+
+/* SKIP INTRO — a quiet pill that appears through the cinematic and retires as it ends (js/cinematic.js toggles .is-on) */
+.cine-skip{position:fixed;left:50%;bottom:clamp(1.2rem,3.2vh,2.3rem);transform:translate(-50%,10px);z-index:55;
+  display:inline-flex;align-items:center;gap:.55rem;padding:.46rem .55rem .46rem .95rem;
+  font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);text-transform:uppercase;
+  color:var(--text-faint);background:color-mix(in srgb,var(--abyss) 32%,transparent);
+  border:1px solid color-mix(in srgb,var(--frost) 12%,transparent);border-radius:var(--radius-pill);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer;
+  opacity:0;pointer-events:none;
+  transition:opacity .6s var(--ease),transform .6s var(--ease-expo),color .3s var(--ease),border-color .3s var(--ease);}
+.cine-skip.is-on{opacity:.82;pointer-events:auto;transform:translate(-50%,0);}
+.cine-skip:hover{opacity:1;color:var(--frost);border-color:color-mix(in srgb,var(--frost) 26%,transparent);}
+.cine-skip:focus-visible{outline:2px solid var(--accent-signal);outline-offset:3px;opacity:1;}
+.cine-skip .cs-line{width:1px;height:1.05em;background:color-mix(in srgb,var(--frost) 24%,transparent);}
+.cine-skip .cs-arrow{color:var(--accent-signal);line-height:1;animation:csArrowBob 2.1s var(--ease-io) infinite;}
+@keyframes csArrowBob{0%,100%{transform:translateY(-1px);}50%{transform:translateY(2px);}}
+@media (prefers-reduced-motion:reduce){.cine-skip .cs-arrow{animation:none;}}
+
+/* ═══════════════════ MOBILE OVERHAUL — compact shell (≤860) · phones (≤560) · touch ═══════════════════ */
+
+/* Cinematic on mobile: the descent becomes a PORTRAIT HERO — a poster Earth backdrop (no canvas scrub) under the reticle +
+   RECON·LIVE tag + ARTIX wordmark that decodes and ice-freezes (timed, not scrolled, in cinematic.js buildStaticDescent). */
+.cinematic.is-static .descent{display:block;position:relative;inset:auto;min-height:100svh;z-index:auto;overflow:hidden;background:#000;}
+.cinematic.is-static .descent-canvas{display:none;}
+/* mobile RACK FOCUS (the desktop hero's bg blur, translated): the poster sits slightly soft, then racks fully sharp when the
+   wordmark LOCKS — keyed to the existing .is-locked class set in buildStaticDescent (no scroll/dive on phones). ::before so only
+   the backdrop blurs; the reticle + ARTIX wordmark (z-index ≥1) stay crisp above it. scale(1.06) hides the blur's transparent edge. */
+.cinematic.is-static .descent::before{content:"";position:absolute;inset:0;z-index:0;
+  background:center/cover no-repeat url("/assets/dive-frames/frame-0001.webp");
+  transform:scale(1.06);filter:blur(6px);transition:filter 1.25s var(--ease-expo);}
+.cinematic.is-static .descent.is-locked::before{filter:blur(0);}
+@media (prefers-reduced-motion:reduce){.cinematic.is-static .descent::before{filter:none;transition:none;}}
+.cinematic.is-static .descent .descent-brand{padding-inline:var(--pad);width:min(88vw,30rem);}   /* defined width so the tagline doesn't over-wrap */
+.cinematic.is-static .descent-word{white-space:nowrap;}   /* keep ARTIX on one line (was wrapping to AR/TIX) */
+/* static chapters: safe-area padding + honest phone rhythm (each still decodes/reveals on scroll-in via the IntersectionObserver) */
+.cinematic.is-static .chapter{padding-top:max(env(safe-area-inset-top),5rem);padding-bottom:max(env(safe-area-inset-bottom),3.25rem);scroll-margin-top:5rem;}
+
+@media (max-width:560px){
+  /* title floors trimmed so every baked line fits ~360px — the .sc decode spans width-lock, so a line that's too long can't wrap */
+  .chapter h2{font-size:clamp(1.7rem,6.6vw,2.4rem);line-height:1.06;}
+  .chapter-hero .ch-title{font-size:clamp(1.7rem,6.6vw,2.4rem);line-height:1.06;}   /* size matched to the other chapter titles on phones */
+  .ch-title{font-size:clamp(1.7rem,6.6vw,2.4rem);}
+  .cinematic.is-static .chapter{gap:var(--space-4);}
+  .cinematic.is-static .descent-word{font-size:clamp(2.3rem,9vw,3.4rem);}   /* fits one line within the reticle on a phone */
+  /* hero status chip → top-left under the eyebrow so it clears the burger + pill */
+  .ch-status{top:max(env(safe-area-inset-top),5.2rem);right:auto;left:var(--pad);}
+  /* display headlines tamed for the narrow column + safe wrapping */
+  .hero h1,.page-hero h1,.closing-h{font-size:clamp(2.3rem,10vw,3.3rem);line-height:1.04;overflow-wrap:break-word;}
+  /* section rhythm — reclaim dead vertical space */
+  .home-section{padding:clamp(3.25rem,11vw,5rem) var(--pad);}
+  .home-head{margin-bottom:2rem;}
+  .net-inner,.closing-inner{padding:clamp(4rem,14vw,6rem) var(--pad);}
+  /* page hero shorter, headline higher */
+  .page-hero{min-height:clamp(48svh,60svh,66svh);}
+  .page-hero-inner{padding-top:var(--section-y);}
+  /* contact meta → stack key over value (match .net-points) */
+  .contact-meta > div{grid-template-columns:1fr;gap:.2rem;}
+  /* process ledger de-crowded */
+  .process-step{gap:var(--space-4);padding:var(--space-5) 0;}
+  .process-body h3{font-size:clamp(1.5rem,7vw,2rem);}
+  /* closing/inner CTA → full-width tap target */
+  .cta-row{flex-direction:column;align-items:stretch;}
+  .cta-row .btn{justify-content:center;width:100%;}
+  /* footer radar readout wraps, never kisses the wordmark */
+  .footer-radar{margin-bottom:1.6rem;}
+  .fr-readout{white-space:normal;text-align:center;width:min(100%,18rem);}
+  /* eyebrow reveal travel shortened so the pre-reveal state never reaches the clipped gutter */
+  .js .eyebrow[data-reveal]{transform:translateX(-8px);}
+}
+
+/* Full-bleed band scrims: vertical wash on phones (the desktop 90deg left-split leaves full-width text over the bright image) */
+@media (max-width:640px){
+  .net-scrim{background:linear-gradient(0deg,var(--abyss) 8%,rgba(5,9,15,.86) 55%,rgba(5,9,15,.74) 100%);}
+  .closing-scrim{background:linear-gradient(0deg,var(--bg) 10%,rgba(5,9,15,.86) 60%,rgba(5,9,15,.66) 100%);}
+  .page-hero-scrim{background:linear-gradient(0deg,var(--bg) 6%,rgba(5,9,15,.74) 46%,rgba(5,9,15,.34) 100%);}
+}
+
+/* Touch (no hover): promote the live-instrument resting states the tiles/cards only reveal on :hover + comfortable footer targets */
+@media (hover:none){
+  .aud-tile::before{width:100%;}
+  .aud-no{color:var(--accent-signal);}
+  .bento-card .bento-expand{opacity:1;border-color:color-mix(in srgb,var(--accent-signal) 55%,transparent);}
+  .footer-nav a{display:inline-flex;align-items:center;min-height:44px;}
+  .footer-meta a,.footer-legal-nav a{padding-top:.55rem;padding-bottom:.55rem;}
+}
+/* Coarse pointer: comfortable form fields + safe-area for the bottom-fixed skip controls */
+@media (pointer:coarse){
+  .intake-form input,.intake-form select{min-height:44px;padding-top:.65rem;padding-bottom:.65rem;}
+  .boot-skip{bottom:calc(1.4rem + env(safe-area-inset-bottom));right:calc(1.4rem + env(safe-area-inset-right));}
+  .cine-skip{bottom:calc(1rem + env(safe-area-inset-bottom));}
+}

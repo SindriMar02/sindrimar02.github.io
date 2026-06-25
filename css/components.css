@@ -1,0 +1,244 @@
+/* ARTIX components.css — consumes redesign/design-system/tokens.css by name.
+   Link tokens.css FIRST. Stage-2 deliverable, zero-build. */
+
+/* ============================================================================
+   ARTIX DESIGN SYSTEM — components.css  (Stage 2 — Component layer)
+   ----------------------------------------------------------------------------
+   The third tier. Consumes PRIMITIVE + SEMANTIC tokens from tokens.css BY NAME.
+   No raw hex/rgba/cubic-bezier appears in a component rule; the only inline
+   literals are genuinely component-local geometry one-offs carried verbatim
+   from the audited source (5px bracket offsets, 16/10 ratio, blur radii,
+   pixel paddings) — each noted inline.
+
+   Pattern: each component first declares a small set of component-scoped
+   custom properties (prefixed --c-*) that alias semantic tokens, so Stage 3 can
+   retheme one component without touching primitives. Then the rules consume the
+   --c-* names. Three-tier flow stays strict: primitive -> semantic -> --c-*.
+
+   HONESTY: every helm surface sets `color` and lets the FIXED SVG inherit via
+   currentColor — geometry is never redrawn. Ember (--accent-live) appears ONLY
+   on the primary CTA, the eyebrow tick, the focused-field rule, the one
+   optional warm card point, and ::selection (in tokens.css base). Card frames,
+   secondary buttons, nav, form borders and focus all resolve to ice/line/frost.
+   ============================================================================ */
+
+:root{
+  /* ---- card ---- */
+  --c-card-bg:linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 50%,transparent),color-mix(in srgb,var(--panel) 28%,transparent));
+  --c-card-bg-hover:linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 82%,transparent),color-mix(in srgb,var(--panel) 50%,transparent));
+  --c-card-border:var(--hairline-strong);
+  --c-card-border-hover:var(--accent-signal);
+  --c-card-radius:var(--radius-card);
+  --c-card-pad:var(--space-6);
+  --c-card-ring:var(--glow-ice);            /* premium ice border-highlight */
+  --c-card-media-zoom:1.045;                /* INNER media only; frame never moves */
+  --c-card-grade:var(--grade);
+  /* ---- button ---- */
+  --c-btn-radius:var(--radius-btn);
+  --c-btn-bracket:9px;                       /* boot-loader corner-bracket idiom (styles.css:135) */
+  --c-btn-pad:1rem 1.5rem;                   /* styles.css:133 */
+  --c-btn-pad-sm:.7rem 1.1rem;               /* styles.css:147 */
+  --c-btn-primary-bg:var(--accent-live);
+  --c-btn-primary-bg-hover:var(--accent-live-hot);
+  --c-btn-primary-ink:var(--on-accent);
+  --c-btn-ghost-border:var(--hairline-strong);
+  --c-btn-ghost-border-hover:var(--accent-signal);
+  --c-btn-ghost-wash:color-mix(in srgb,var(--ice) 7%,transparent);
+  /* ---- eyebrow ---- */
+  --c-eyebrow-ink:var(--accent-signal);
+  --c-eyebrow-tick:var(--accent-live);       /* the rationed warm point */
+  /* ---- form ---- */
+  --c-field-line:var(--hairline-strong);
+  --c-field-line-focus:var(--accent-signal);
+  --c-field-rule:var(--accent-live);         /* ember rule under focused field */
+  --c-form-bracket:14px;                      /* intake-panel bracket (styles.css:440) */
+  --c-form-bracket-ink:var(--accent-signal);
+  /* ---- masthead / nav ---- */
+  --c-mast-h:74px;                            /* styles.css:69 */
+  --c-mast-bg:linear-gradient(180deg,color-mix(in srgb,var(--abyss) 70%,transparent),transparent);
+  --c-mast-bg-elevated:color-mix(in srgb,var(--abyss) 82%,transparent);
+  --c-nav-ink:var(--text-dim);
+  --c-nav-ink-hover:var(--text);
+  --c-nav-underline:var(--accent-live);       /* ember underline-wipe (carried) */
+  --c-nav-cta-border:var(--accent-live);
+}
+
+/* =================================================================
+   (a) STATIONARY HYBRID BENTO CARD — frame is LOCKED; media moves.
+   Locked decision: the FRAME never moves/transforms. All motion lives
+   INSIDE the media well (poster -> silent looping video crossfade).
+   ================================================================= */
+.bento-card{
+  position:relative;display:flex;flex-direction:column;
+  border:1px solid var(--c-card-border);border-radius:var(--c-card-radius);
+  background:var(--c-card-bg);color:var(--text);text-decoration:none;
+  overflow:hidden;isolation:isolate;
+  transform:none;                                   /* LOCKED: frame never transforms */
+  transition:border-color var(--dur-mid) var(--ease),
+             background var(--dur-mid) var(--ease),
+             box-shadow var(--dur-mid-2) var(--ease-expo);
+}
+.bento-card:hover,.bento-card:focus-visible{
+  transform:none;                                   /* re-assert the lock on interaction */
+  border-color:var(--c-card-border-hover);
+  background:var(--c-card-bg-hover);
+}
+/* hover glow is now the cursor-following ice BorderGlow (site.css .cg-on); keep the static ring ONLY for keyboard focus */
+.bento-card:focus-visible{ box-shadow:var(--c-card-ring); }
+/* media well — the ONLY moving region (16/10 carried local ratio) */
+.bento-media{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden;background:var(--surface);}
+.bento-poster,.bento-video{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  filter:var(--c-card-grade);                       /* identical cold grade on BOTH */
+  transition:transform var(--dur-mid-2) var(--ease-expo),opacity var(--dur-mid) var(--ease);
+  transform-origin:center;
+}
+.bento-poster{z-index:1;opacity:1;}
+.bento-video{z-index:2;opacity:0;}                  /* crossfade target; lazy src via IO */
+.bento-card:hover .bento-video,
+.bento-card:focus-visible .bento-video{opacity:1;}
+/* INNER zoom only — frame stays put */
+.bento-card:hover .bento-poster,.bento-card:hover .bento-video,
+.bento-card:focus-visible .bento-poster,.bento-card:focus-visible .bento-video{
+  transform:scale(var(--c-card-media-zoom));
+}
+.bento-body{position:relative;z-index:3;display:flex;flex-direction:column;gap:var(--space-2);padding:var(--c-card-pad);flex:1;}
+.bento-title{
+  font-family:var(--type-voice-display);font-weight:var(--weight-display-bold);
+  letter-spacing:var(--track-display-2);font-size:var(--fs-h4);
+  line-height:var(--leading-tight);color:var(--text);margin:0;
+}
+.bento-line{
+  font-family:var(--type-voice-body);line-height:var(--leading-snug);
+  color:var(--text-dim);font-size:var(--fs-body-sm);margin:0;flex:1;
+}
+.bento-go{
+  font-family:var(--type-voice-instrument);font-size:var(--fs-mono-label);
+  letter-spacing:.14em;text-transform:uppercase;color:var(--text);
+  margin-top:var(--space-3);display:inline-flex;gap:.5em;align-items:center;
+  text-shadow:var(--c-text-on-media-shadow);        /* per-frame micro-text over busy media */
+}
+.bento-go .btn-arrow{transition:transform var(--dur-mid) var(--ease-expo);}
+.bento-card:hover .bento-go .btn-arrow,.bento-card:focus-visible .bento-go .btn-arrow{transform:translateX(5px);}
+/* expand affordance — corner bracket, mono, top-right of the body */
+.bento-expand{
+  position:absolute;top:var(--c-card-pad);right:var(--c-card-pad);width:14px;height:14px;
+  border-top:1px solid var(--hairline-strong);border-right:1px solid var(--hairline-strong);opacity:.6;
+  transition:border-color var(--dur-mid) var(--ease),opacity var(--dur-mid) var(--ease);
+}
+.bento-card:hover .bento-expand,.bento-card:focus-visible .bento-expand{border-color:var(--accent-signal);opacity:1;}
+/* optional single warm point per card (rationed) */
+.bento-card[data-cta]{border-color:color-mix(in srgb,var(--accent-live) 45%,transparent);}
+.bento-card[data-cta] .bento-go{color:var(--accent-live-hot);}
+/* reduced-motion: POSTER ONLY */
+@media (prefers-reduced-motion:reduce){
+  .bento-video{display:none!important;}
+  .bento-card:hover .bento-poster,.bento-card:focus-visible .bento-poster{transform:none!important;}
+  .bento-card:hover,.bento-card:focus-visible{box-shadow:none;}
+}
+
+/* =================================================================
+   (b) BENTO GRID — asymmetric Stripe-like areas (dark ground).
+   1 large featured (8x2) + 1 tall accent (4x2) + a row of equal (4-wide)
+   + a full-width band (12-wide). Composition is Stage-3's job; this only
+   defines the track machinery + named span utilities.
+   ================================================================= */
+.bento-grid{
+  display:grid;width:100%;max-width:var(--grid-max);margin-inline:auto;
+  gap:var(--grid-gap);
+  grid-template-columns:repeat(var(--grid-cols),1fr);
+  grid-auto-rows:var(--grid-row);
+}
+.bento-grid > .feature{grid-column:span 8;grid-row:span 2;}   /* 1 large featured */
+.bento-grid > .accent{grid-column:span 4;grid-row:span 2;}    /* 1 tall accent */
+.bento-grid > .equal{grid-column:span 4;}                     /* row of equal */
+.bento-grid > .band{grid-column:1 / -1;}                      /* full-width band */
+@media (max-width:980px){
+  .bento-grid > .feature{grid-column:span 12;grid-row:span 1;}
+  .bento-grid > .accent{grid-column:span 6;}
+  .bento-grid > .equal{grid-column:span 6;}
+}
+@media (max-width:860px){                                     /* carried-forward collapse (styles.css:305) */
+  .bento-grid{grid-template-columns:1fr;grid-auto-rows:auto;}
+  .bento-grid > *{grid-column:1 / -1!important;grid-row:auto!important;}
+}
+
+/* =================================================================
+   (c) BUTTONS — corner-bracket primary CTA (ember, rationed) + quiet secondary
+   ================================================================= */
+.btn{
+  position:relative;display:inline-flex;align-items:center;gap:.7rem;padding:var(--c-btn-pad);
+  border-radius:var(--c-btn-radius);
+  font-family:var(--type-cta-family);font-size:var(--type-cta-size);font-weight:var(--type-cta-weight);
+  letter-spacing:var(--type-cta-track);text-transform:uppercase;white-space:nowrap;
+  transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+/* instrument corner-brackets snap in on hover/keyboard-focus — boot-loader idiom (5px offset carried) */
+.btn::before,.btn::after{content:"";position:absolute;width:var(--c-btn-bracket);height:var(--c-btn-bracket);
+  opacity:0;transition:opacity var(--dur-fast) var(--ease-expo);pointer-events:none;}
+.btn::before{top:5px;left:5px;border-top:1px solid var(--accent-live);border-left:1px solid var(--accent-live);}
+.btn::after{right:5px;bottom:5px;border-bottom:1px solid var(--accent-live);border-right:1px solid var(--accent-live);}
+.btn:hover::before,.btn:hover::after,.btn:focus-visible::before,.btn:focus-visible::after{opacity:1;}
+.btn-arrow{transition:transform var(--dur-mid) var(--ease-expo);}
+.btn:hover .btn-arrow,.btn:focus-visible .btn-arrow{transform:translateX(5px);}
+/* primary — the ONE rationed warm CTA */
+.btn-primary{background:var(--c-btn-primary-bg);color:var(--c-btn-primary-ink);}
+.btn-primary:hover{background:var(--c-btn-primary-bg-hover);}
+.btn-primary::before{border-top-color:var(--on-accent);border-left-color:var(--on-accent);}
+.btn-primary::after{border-bottom-color:var(--on-accent);border-right-color:var(--on-accent);}
+/* secondary — quiet, cool */
+.btn-ghost{border:1px solid var(--c-btn-ghost-border);color:var(--text);}
+.btn-ghost:hover{border-color:var(--c-btn-ghost-border-hover);background:var(--c-btn-ghost-wash);}
+.btn-sm{padding:var(--c-btn-pad-sm);font-size:var(--fs-mono-nav);}
+/* focus-visible ring inherited from the global :focus-visible (ice) — not overridden here */
+
+/* =================================================================
+   (d) EYEBROWS / kickers — mono instrument voice + rationed ember tick
+   ================================================================= */
+.eyebrow{
+  display:inline-flex;align-items:center;gap:.65em;
+  font-family:var(--type-label-family);font-weight:var(--weight-mono-label);
+  font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;
+  color:var(--c-eyebrow-ink);margin:0 0 1.1rem;
+}
+.eyebrow .sep{color:var(--accent-live);margin:0 .4em;}
+.eyebrow i{font-style:normal;color:var(--accent-live);}      /* live index */
+.eyebrow-tick{width:22px;height:1px;background:var(--c-eyebrow-tick);box-shadow:var(--glow-ember);flex:none;}
+
+/* =================================================================
+   (e) INTAKE / RFI FORM — labelled, aria-live, intake-panel ice brackets.
+   Carried verbatim from .contact-form (styles.css:438-460). Build-free:
+   posts to mailto with a copy-to-clipboard fallback (markup behavior).
+   ================================================================= */
+.intake-form{
+  position:relative;display:grid;grid-template-columns:1fr 1fr;gap:1.6rem 1.4rem;
+  border:1px solid var(--hairline);padding:clamp(1.5rem,3.2vw,2.3rem);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 28%,transparent),color-mix(in srgb,var(--abyss-2) 10%,transparent));
+}
+.intake-form::before,.intake-form::after{content:"";position:absolute;width:var(--c-form-bracket);height:var(--c-form-bracket);pointer-events:none;opacity:.55;}
+.intake-form::before{top:-1px;left:-1px;border-top:1px solid var(--c-form-bracket-ink);border-left:1px solid var(--c-form-bracket-ink);}
+.intake-form::after{right:-1px;bottom:-1px;border-bottom:1px solid var(--c-form-bracket-ink);border-right:1px solid var(--c-form-bracket-ink);}
+.field{position:relative;display:flex;flex-direction:column;gap:.4rem;}
+.field-full{grid-column:1 / -1;}
+.field[data-ch]::before{content:attr(data-ch);position:absolute;top:2px;right:0;font-family:var(--font-mono);font-size:var(--fs-mono-nano);letter-spacing:.18em;color:var(--text-faint);}
+.intake-form label{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);}
+.intake-form input,.intake-form select,.intake-form textarea{
+  font-family:var(--font-body);font-size:1rem;color:var(--text);
+  background:transparent;border:0;border-bottom:1px solid var(--c-field-line);border-radius:0;padding:.5rem 0 .55rem;
+  transition:border-color var(--dur-fast) var(--ease);
+}
+.intake-form textarea{resize:vertical;min-height:92px;}
+.intake-form input:focus,.intake-form select:focus,.intake-form textarea:focus{outline:none;border-bottom-color:var(--c-field-line-focus);}
+.intake-form input:focus-visible,.intake-form select:focus-visible,.intake-form textarea:focus-visible{outline:var(--ring-focus);outline-offset:var(--ring-focus-offset);}
+/* ember rule draws in from the left under the focused field (rationed live accent) */
+.field::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:1px;background:var(--c-field-rule);transform:scaleX(0);transform-origin:left;transition:transform var(--dur-mid) var(--ease-expo);}
+.field:focus-within::after{transform:scaleX(1);}
+.intake-form select{appearance:none;padding-right:1.4rem;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ice) 50%),linear-gradient(135deg,var(--ice) 50%,transparent 50%);
+  background-position:calc(100% - 13px) 55%,calc(100% - 8px) 55%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
+.btn-submit,.btn-copy{grid-column:1 / -1;justify-content:center;}
+.form-status{grid-column:1 / -1;margin:0;min-height:1.15em;font-family:var(--font-mono);font-size:.78rem;color:var(--accent-signal);}
+.form-status.is-error{color:var(--accent-live-hot);}
+.form-note,.form-req-note{grid-column:1 / -1;font-family:var(--font-mono);font-size:.7rem;color:var(--text-faint);line-height:var(--leading-body);}
+.form-note a{color:var(--accent-signal);}
+@media (max-width:560px){.intake-form{grid-template-columns:1fr;}}
