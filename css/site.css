@@ -355,6 +355,39 @@ html:not(.js) .boot{display:none!important;}
 .chapter.is-on .eyebrow::after{transform:scaleX(1);}
 .ch-sub{transition:opacity .9s var(--ease-expo) .28s, transform .9s var(--ease-expo) .28s;}
 
+/* ───────── HERO = THE COVER (chapter 0) ─────────
+   Deliberately a DIFFERENT object from the numbered briefing chapters: the numbered chapters are left-aligned with an ember
+   "0N · …" eyebrow + grey body sub; the hero is a CENTRED ice title card — frost lede (its own sentence, NOT the wordmark
+   slogan), an ice coordinate tag, a framed "scroll to begin" affordance, and four reticle corner brackets. So the moment the
+   dive lands, the cover reads as the cover, and scrolling into "01 · The context" is a clear change of register. */
+.chapter-hero{justify-items:center;text-align:center;}
+.chapter-hero .eyebrow,.chapter-hero .ch-title,.chapter-hero .ch-sub,.chapter-hero .ch-cue{position:relative;z-index:2;}
+/* eyebrow → centred ICE coordinate tag (not the ember chapter number) */
+.chapter-hero .eyebrow{color:var(--accent-signal);font-size:var(--fs-mono-label);letter-spacing:.3em;}
+.chapter-hero .eyebrow::after{display:none;}                       /* drop the left-anchored ember underline */
+/* title → a true cover headline: a touch larger + heavier than the chapter titles */
+.chapter-hero .ch-title{font-weight:800;font-size:clamp(2.3rem,5.5vw,4.7rem);letter-spacing:-.022em;line-height:1.02;}
+/* secondary → a centred FROST lede (brighter + larger than the grey chapter subs), its own sentence */
+.chapter-hero .ch-sub{color:var(--frost);font-size:clamp(1.05rem,1.55vw,1.35rem);max-width:48ch;line-height:1.6;letter-spacing:.004em;text-shadow:0 1px 18px rgba(2,6,13,.8);}
+/* scroll cue → a framed bottom-centre affordance: caption · drawn hairline · bobbing arrow (chapters use inline text links instead) */
+.chapter-hero .ch-cue{position:absolute;left:0;right:0;bottom:clamp(2.4rem,9vh,5rem);margin:0;display:flex;flex-direction:column;align-items:center;gap:.65rem;color:var(--text-faint);}
+.chapter-hero .ch-cue::after{content:"";order:1;width:1px;height:clamp(16px,3.6vh,28px);background:linear-gradient(180deg,var(--accent-signal),transparent);opacity:.65;}
+.chapter-hero .ch-cue span{order:2;color:var(--accent-signal);}
+/* reticle corner brackets — frame the cover like a camera lock (one element, 8 corner bars); fades out with the hero on scroll */
+.chapter-hero::after{content:"";position:absolute;inset:clamp(2rem,8vh,5rem) clamp(.5rem,3vw,2rem);pointer-events:none;z-index:1;opacity:.45;
+  --rc:var(--accent-signal);--rt:1px;--rl:20px;
+  background:
+    linear-gradient(var(--rc),var(--rc)) top left/var(--rl) var(--rt) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) top left/var(--rt) var(--rl) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) top right/var(--rl) var(--rt) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) top right/var(--rt) var(--rl) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) bottom left/var(--rl) var(--rt) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) bottom left/var(--rt) var(--rl) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) bottom right/var(--rl) var(--rt) no-repeat,
+    linear-gradient(var(--rc),var(--rc)) bottom right/var(--rt) var(--rl) no-repeat;}
+/* mobile static: the hero is a normal stacked block (cue + chip already hidden ≤860) — drop the lens frame so it doesn't box the short card */
+@media (max-width:860px){.cinematic.is-static .chapter-hero::after{display:none;}}
+
 /* (story grain removed — .cinematic-stage::after already grains the whole stage, and mix-blend:overlay here recomposited every scrubbed frame) */
 /* .story-vignette is now display:none — vignette is on .cinematic-stage::before */
 
@@ -645,6 +678,11 @@ html:not(.js) .boot{display:none!important;}
 .descent-brand{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:.6rem;text-align:center;z-index:2;
   opacity:0;text-shadow:0 2px 40px rgba(2,6,13,.85);transition:opacity .9s var(--ease-expo),transform .9s var(--ease-expo);}
 .descent.is-revealed .descent-brand{opacity:1;}
+/* mobile/static hero wordmark canvas — the SAME artix-wordmark-decode.js module the desktop dive-lens composites, drawn on a plain
+   2D canvas (cinematic.js buildMobileWordmark) so the look + scramble match desktop. It draws ARTIX + the slogan, so the DOM
+   .descent-word/.descent-sub are hidden when present (.has-canvas-wm). Transparent until scrambleIn paints the decode. */
+.descent-wm-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;}
+.descent.has-canvas-wm .descent-word,.descent.has-canvas-wm .descent-sub{display:none;}
 /* helm mark removed from the hero (owner) — ARTIX wordmark stands alone; .descent-mark styles + dscLockPulse keyframes deleted as dead */
 .descent-word{font-family:var(--font-wordmark);font-weight:400;font-size:clamp(2.8rem,7.5vw,6rem);line-height:1;margin:.4rem 0 0;color:var(--frost);
   letter-spacing:.22em;padding-right:.06em;opacity:0;text-shadow:0 2px 34px rgba(2,6,13,.7);transition:letter-spacing 1.1s var(--ease-expo) .1s,opacity .8s var(--ease-expo) .1s,color .5s var(--ease);}
@@ -746,6 +784,17 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
    (cinematic.js setupStaticParallax: a STATIC translateY per scroll frame, rAF-coalesced) rather than animation-timeline:view()
    — the CSS scroll-timeline GHOSTS the scrambled per-character title text in Chrome (it re-rasters the layer at interpolated
    positions). A plain static transform renders cleanly. Reduced-motion skips it (no transform written). */
+
+/* HERO-ONLY mobile cinematic (≤860): the 7 narrative chapters duplicate the content sections below and, stripped of the dive
+   footage, became a long scroll of black scramble-cards (owner: "way too much of a long scroll of pure blackness and unscrambling
+   texts"). Collapse them — keep ONLY the orbital ARTIX hero (the one signature decode) + chapter-0's headline as a clean lead-in,
+   then drop straight into the image-backed content sections. Desktop & wide reduced-motion/no-GSAP keep the full stacked chapters. */
+@media (max-width:860px){
+  .cinematic.is-static .chapter:not(.chapter-hero){display:none;}
+  .cinematic.is-static .chapter.chapter-hero{min-height:auto;padding-block:clamp(3.5rem,15vw,6rem);}
+  .cinematic.is-static .chapter.chapter-hero .ch-status,
+  .cinematic.is-static .chapter.chapter-hero .ch-cue{display:none;}   /* no orphan decode-chip / redundant scroll cue — the descent already cues scroll, and the headline flows into "What we do" */
+}
 
 @media (max-width:560px){
   /* title floors trimmed so every baked line fits ~360px — the .sc decode spans width-lock, so a line that's too long can't wrap */

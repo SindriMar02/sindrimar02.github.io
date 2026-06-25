@@ -7,6 +7,7 @@
 import { createSequence } from '/js/canvas-seq.js';
 import { createDiveLens } from '/js/dive-lens.js';
 import { scramble } from '/js/scramble.js';
+import { createWordmarkDecode } from '/js/artix-wordmark-decode.js';   // SAME hero wordmark decode the desktop dive-lens uses — rendered on a plain 2D canvas for the mobile static hero
 import { setProgress as busProgress } from '/js/progress-bus.js';
 
 const COORD = '64.13°N 21.95°W';                // descent coast fix — Spec v1 §02 (exact). NB: footer/closing use the Akranes HQ fix 64.32°N 22.08°W
@@ -29,13 +30,15 @@ let telAlt, telVel, descentScrim;
 let chapters = [], rail, railFill, railNum, skipBtn, activePrev = -1;
 let mmW, mmR, onMM, onBooted, onSkip, built = false, phaseStory = false, staticIO = null, staticTimers = [];
 let segTargets = [], snapLockT = 0, snapAnim = false, coolUntil = 0, glideRaf = 0, touchY = 0, onSnapInput = null, onSnapKey = null, onTouchStart = null, onTouchMove = null;
+let mobileWm = null;   // mobile/static hero wordmark — the desktop decode module on a 2D canvas (built in buildStaticDescent)
 
 /* ───────── PHASE 1 · orbital descent ───────── */
 function revealBrand(){
   if(revealed || !dStage) return; revealed = true;
   dStage.classList.add('is-revealed');
-  if(dSeq && dSeq.scrambleIn) dSeq.scrambleIn();          // WebGL ice wordmark scrambles into view on entry
-  else if(word) scramble(word, { duration: 900 });        // mobile / no-WebGL DOM fallback
+  if(dSeq && dSeq.scrambleIn) dSeq.scrambleIn();          // desktop: WebGL ice wordmark scrambles into view on entry
+  else if(mobileWm) mobileWm.scrambleIn();                // mobile/static: the SAME wordmark-decode module on a 2D canvas (look + scramble match desktop)
+  else if(word) scramble(word, { duration: 900 });        // last-ditch DOM fallback (canvas build failed)
 }
 // frost displacement scale setter — driven by SCROLL on desktop (per-frame, cached). A CSS filter swap (none → url(#dscFrost))
 // can't tween, so the frost is animated by writing the feDisplacementMap scale directly.
@@ -112,14 +115,15 @@ function decodeChapter(c){
   followers.forEach(el => { clearTimeout(el._beat); el.style.opacity = '0'; });
   const releaseFollowers = (delay) => followers.forEach(el => { el._beat = setTimeout(() => { el.style.opacity = ''; }, delay); });
   if(sub){
+    const subStart = Math.round(titleDone * 0.5);                     // start the sub WHILE the title is still resolving (was titleDone+140 ≈ +850ms — owner: subs took too long to appear)
     clearTimeout(sub._beat);
-    sub.style.opacity = '0';                                           // hold until title resolves, then decode as the second beat
+    sub.style.opacity = '0';                                           // hold briefly, then decode as an overlapping second beat
     sub._beat = setTimeout(() => {
       sub.style.opacity = '';
       scramble(sub, { duration: 760, mode: 'scan' });
       if(chip) chip._lock = setTimeout(() => lockChip(chip), 820);
-    }, titleDone + 140);
-    releaseFollowers(titleDone + 140 + 320);                          // a beat AFTER the sub begins decoding
+    }, subStart);
+    releaseFollowers(subStart + 320);                                 // a beat AFTER the sub begins decoding
   } else {
     if(chip) chip._lock = setTimeout(() => lockChip(chip), titleDone + 140);
     releaseFollowers(titleDone + 140);                                // no sub → follow straight off the title
@@ -269,11 +273,51 @@ function buildAnimated(){
 // MOBILE/static cinematic OPENING — the descent is a portrait hero (CSS poster backdrop; no canvas scrub). A short TIMED sequence
 // (not scroll) plays the brand: coordinate ticker → ARTIX decodes out of the telemetry → ACQUIRING flips to LOCK + the wordmark
 // ice-freezes. This brings the "Watch at the Edge" opening to phones without the 663-frame landscape scrub (battery/crop hazard).
+// MOBILE/static hero wordmark — renders the SAME decode module the desktop dive-lens uses (artix-wordmark-decode.js: chromatic-
+// split / focus-pull ICE churn → Michroma FROST; ARTIX resolves, then the slogan decodes as a 2nd beat) onto a plain 2D canvas, so
+// the mobile hero wordmark MATCHES desktop in look AND scramble. (The old path was scramble.js on the DOM .descent-word — a wholly
+// different animation.) Opts are IDENTICAL to dive-lens: subGap 0.8, titleStagger 220 = strict sequential A→R→T→I→X. The rAF runs
+// only through the ~2.7s decode, then stops (the resolved wordmark + its resting glow are left painted; resize re-bakes).
+function buildMobileWordmark(host){
+  const cv = document.createElement('canvas');
+  cv.className = 'descent-wm-canvas';
+  cv.setAttribute('aria-hidden', 'true');
+  host.appendChild(cv);
+  const ctx = cv.getContext('2d');
+  const wm = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });
+  let raf = 0, settledFrames = 0, cssW = 1, cssH = 1, fs = 0, cx = 0, cy = 0;
+  function size(){
+    const r = host.getBoundingClientRect();
+    cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);                 // draw in CSS px, crisp on HiDPI
+    fs = Math.round(Math.min(cssH * 0.11, cssW * 0.145));   // confident size; ARTIX (5 wide Michroma glyphs) fits the column
+    cx = cssW * 0.5; cy = cssH * 0.47;                      // centred (matches the current DOM brand placing; the slogan draws below)
+  }
+  function paint(){ ctx.clearRect(0, 0, cssW, cssH); wm.draw(ctx, cx, cy, fs, performance.now(), 1, 1); }
+  function loop(){ paint(); if(wm.settled && ++settledFrames > 2){ raf = 0; return; } raf = requestAnimationFrame(loop); }
+  const onResize = () => { size(); if(!raf){ settledFrames = 0; paint(); } };   // URL-bar collapse / orientation: a settled wordmark re-bakes at the new fs inside draw()
+  size();
+  window.addEventListener('resize', onResize, { passive: true });
+  return {
+    scrambleIn(){
+      size(); wm.scrambleIn(performance.now()); settledFrames = 0;
+      if(mmR.matches){ paint(); return; }                  // reduced-motion → draw resolved instantly, no loop
+      cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+    },
+    destroy(){ cancelAnimationFrame(raf); raf = 0; window.removeEventListener('resize', onResize); cv.remove(); }
+  };
+}
 function buildStaticDescent(){
   if(!dStage) return;
   dStage.classList.add('is-on');
+  try { mobileWm = buildMobileWordmark(dStage); dStage.classList.add('has-canvas-wm'); }   // canvas owns ARTIX + slogan; .has-canvas-wm hides the DOM .descent-word/.descent-sub
+  catch(e){ mobileWm = null; }                            // build failed → DOM brand stays visible, revealBrand falls back to scramble(word)
   if(mmR.matches){                                       // reduced-motion: resolve the opening instantly — no scramble/ticker
-    revealed = true; dStage.classList.add('is-revealed'); setLock(true); setTelemetry(1); return;   // show the descent already LANDED (ALT/VEL 0), not frozen at cruise
+    revealed = true; dStage.classList.add('is-revealed'); setLock(true); setTelemetry(1);
+    if(mobileWm) mobileWm.scrambleIn();                  // under reduce() this draws the wordmark already resolved
+    return;                                              // show the descent already LANDED (ALT/VEL 0), not frozen at cruise
   }
   let lkd = false, telRaf = 0;
   const rnd = () => (Math.random() * 88 + 1).toFixed(2);
@@ -282,8 +326,8 @@ function buildStaticDescent(){
   const telT0 = performance.now(), TEL_DUR = 1900;
   const telStep = (now) => { const k = clamp((now - telT0) / TEL_DUR, 0, 1); setTelemetry(k); if(k < 1) telRaf = requestAnimationFrame(telStep); };
   telRaf = requestAnimationFrame(telStep);
-  const t1 = setTimeout(() => revealBrand(), 380);       // ARTIX decodes out of the acquisition telemetry
-  const t2 = setTimeout(() => { lkd = true; setLock(true); rampFrost(3.8); }, 1900);  // ACQUIRING → LOCK; settle the frost to a legible RESTING freeze (setLock ramps to 7 = the desktop zoom-through peak, too heavy as a static state)
+  const t1 = setTimeout(() => revealBrand(), 380);       // ARTIX decodes out of the acquisition telemetry (canvas wordmark scrambleIn)
+  const t2 = setTimeout(() => { lkd = true; setLock(true); }, 1900);  // ACQUIRING → LOCK (poster racks sharp + coord flips ember); the canvas wordmark carries its own frost (no rampFrost on the hidden DOM word)
   staticTimers.push(() => { clearInterval(tick); clearTimeout(t1); clearTimeout(t2); cancelAnimationFrame(telRaf); });
 }
 // MOBILE static headline parallax — the only per-frame work on phones (the cinematic scrub doesn't run here). A STATIC transform
@@ -306,7 +350,7 @@ function pllxApply(){
 }
 function setupStaticParallax(){
   if(mmR.matches || !mmW.matches) return;                          // reduced-motion OR not the compact shell (e.g. a no-GSAP DESKTOP fallback also takes buildStatic) → no parallax
-  pllxTitles = chapters.map(c => c.querySelector('.ch-title')).filter(Boolean);
+  pllxTitles = chapters.filter(c => c.offsetParent !== null).map(c => c.querySelector('.ch-title')).filter(Boolean);   // visible chapters only — in hero-only mode (≤860) that's just the hero headline (1..7 are display:none)
   if(!pllxTitles.length) return;
   pllxScroll = () => { if(!pllxRaf) pllxRaf = requestAnimationFrame(pllxApply); };
   window.addEventListener('scroll', pllxScroll, { passive: true });
@@ -324,14 +368,20 @@ function buildStatic(){
   chapters.forEach(c => { c.removeAttribute('aria-hidden'); if(SUPPORTS_INERT) c.inert = false; });
   buildStaticDescent();
   setupStaticParallax();
+  // HERO-ONLY on mobile/compact (≤860, paired with the CSS that display:none's .chapter:not(.chapter-hero)): the 7 narrative
+  // chapters duplicate the content sections below and, stripped of the dive footage, read as a long scroll of black scramble-
+  // cards. Reveal ONLY the hero headline, and reveal it CLEANLY — the orbital ARTIX wordmark is the one signature decode (no
+  // per-char scramble here). Wide reduced-motion / no-GSAP fallbacks keep the full stacked story (those chapters stay visible >860).
+  const heroOnly = mmW.matches;
+  const targets = heroOnly ? chapters.filter(c => c.classList.contains('chapter-hero')) : chapters;
   if(mmR.matches || typeof IntersectionObserver === 'undefined'){
-    chapters.forEach(c => { c._on = true; c.classList.add('is-on'); lockChip(c.querySelector('.ch-status')); });   // instant reveal, no per-char motion
+    targets.forEach(c => { c._on = true; c.classList.add('is-on'); lockChip(c.querySelector('.ch-status')); });   // instant reveal, no per-char motion
   } else {
-    // per-chapter cinematic: each chapter decodes (ICE scramble) + reveals as it scrolls into view (mirrors the desktop story beats)
+    // reveal as each target scrolls into view: the full stack decodes (ICE scramble, mirrors the desktop beats); the lone hero just fades in
     staticIO = new IntersectionObserver((ents) => ents.forEach(en => {
-      if(en.isIntersecting){ const c = en.target; if(!c._on){ c._on = true; c.classList.add('is-on'); decodeChapter(c); } }
+      if(en.isIntersecting){ const c = en.target; if(!c._on){ c._on = true; c.classList.add('is-on'); if(heroOnly) lockChip(c.querySelector('.ch-status')); else decodeChapter(c); } }
     }), { rootMargin: '0px 0px -40% 0px', threshold: 0.01 });
-    chapters.forEach(c => staticIO.observe(c));
+    targets.forEach(c => staticIO.observe(c));
   }
   built = true;
 }
@@ -344,6 +394,7 @@ function teardown(){
   if(ticker){ clearInterval(ticker); ticker = 0; }
   if(staticIO){ staticIO.disconnect(); staticIO = null; }
   staticTimers.forEach(fn => { try { fn(); } catch(e){} }); staticTimers = [];
+  if(mobileWm){ try { mobileWm.destroy(); } catch(e){} mobileWm = null; }
   cancelAnimationFrame(frostRaf); if(frostDisp){ frostDisp.setAttribute('scale', '0'); delete frostDisp._s; }
   if(telAlt) delete telAlt._v; if(telVel) delete telVel._v;
   if(descentScrim){ descentScrim.style.opacity = ''; delete descentScrim._op; }
@@ -351,7 +402,7 @@ function teardown(){
   sec && sec.classList.remove('is-static');
   if(dStage){ dStage.style.opacity = ''; dStage.style.visibility = ''; delete dStage._op; }
   if(sStage){ sStage.style.opacity = ''; sStage.style.visibility = ''; sStage.style.removeProperty('--seam'); delete sStage._op; delete sStage._seam; }
-  dStage && dStage.classList.remove('is-on', 'is-locked', 'is-frozen', 'is-revealed');
+  dStage && dStage.classList.remove('is-on', 'is-locked', 'is-frozen', 'is-revealed', 'has-canvas-wm');
   if(brand){ brand.style.transform = ''; brand.style.opacity = ''; brand.style.filter = ''; brand.style.willChange = ''; }
   chapters.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.removeAttribute('aria-hidden'); delete c.dataset.live; delete c._o; delete c._on;
     c.classList.remove('is-on'); if(SUPPORTS_INERT) c.inert = false; else c.querySelectorAll('a,button').forEach(el => el.removeAttribute('tabindex'));
