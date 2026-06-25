@@ -102,7 +102,13 @@ function decodeChapter(c){
     titleDone = lines.length ? (560 + (lines.length - 1) * 150) : 0;
   }
   scramble(c.querySelector('.eyebrow'), { duration: 520, spread: 0.6 });
-  if(reduceMo){ if(chip) lockChip(chip); return; }
+  const cta = c.querySelector('.ch-cta'), cue = c.querySelector('.ch-cue');
+  if(reduceMo){ if(chip) lockChip(chip); return; }                    // (reduced-motion reveals cta/cue via CSS — never held here)
+  // The action link (cta) + scroll cue follow the SUB beat — the CSS reveal would otherwise fade them in at ~.3s, BEFORE the
+  // JS-held sub even starts decoding (~titleDone+140), inverting the eyebrow → sub → cta reading order. Hold, release after the sub.
+  const followers = [cta, cue].filter(Boolean);
+  followers.forEach(el => { clearTimeout(el._beat); el.style.opacity = '0'; });
+  const releaseFollowers = (delay) => followers.forEach(el => { el._beat = setTimeout(() => { el.style.opacity = ''; }, delay); });
   if(sub){
     clearTimeout(sub._beat);
     sub.style.opacity = '0';                                           // hold until title resolves, then decode as the second beat
@@ -111,8 +117,10 @@ function decodeChapter(c){
       scramble(sub, { duration: 760, mode: 'scan' });
       if(chip) chip._lock = setTimeout(() => lockChip(chip), 820);
     }, titleDone + 140);
+    releaseFollowers(titleDone + 140 + 320);                          // a beat AFTER the sub begins decoding
   } else {
     if(chip) chip._lock = setTimeout(() => lockChip(chip), titleDone + 140);
+    releaseFollowers(titleDone + 140);                                // no sub → follow straight off the title
   }
 }
 function setLive(c, live){
@@ -263,19 +271,57 @@ function buildStaticDescent(){
   if(!dStage) return;
   dStage.classList.add('is-on');
   if(mmR.matches){                                       // reduced-motion: resolve the opening instantly — no scramble/ticker
-    revealed = true; dStage.classList.add('is-revealed'); setLock(true); return;
+    revealed = true; dStage.classList.add('is-revealed'); setLock(true); setTelemetry(1); return;   // show the descent already LANDED (ALT/VEL 0), not frozen at cruise
   }
-  let lkd = false;
+  let lkd = false, telRaf = 0;
   const rnd = () => (Math.random() * 88 + 1).toFixed(2);
   const tick = setInterval(() => { if(!lkd && dcVal) dcVal.textContent = rnd() + '°N ' + rnd() + '°W'; }, 90);
+  // live HUD — ALT/VEL fall to "landed" over the descent window (rAF, decode-free) so the instrument reads as a real descent, not a frozen still
+  const telT0 = performance.now(), TEL_DUR = 1900;
+  const telStep = (now) => { const k = clamp((now - telT0) / TEL_DUR, 0, 1); setTelemetry(k); if(k < 1) telRaf = requestAnimationFrame(telStep); };
+  telRaf = requestAnimationFrame(telStep);
   const t1 = setTimeout(() => revealBrand(), 380);       // ARTIX decodes out of the acquisition telemetry
   const t2 = setTimeout(() => { lkd = true; setLock(true); rampFrost(3.8); }, 1900);  // ACQUIRING → LOCK; settle the frost to a legible RESTING freeze (setLock ramps to 7 = the desktop zoom-through peak, too heavy as a static state)
-  staticTimers.push(() => { clearInterval(tick); clearTimeout(t1); clearTimeout(t2); });
+  staticTimers.push(() => { clearInterval(tick); clearTimeout(t1); clearTimeout(t2); cancelAnimationFrame(telRaf); });
+}
+// MOBILE static headline parallax — the only per-frame work on phones (the cinematic scrub doesn't run here). A STATIC transform
+// per scroll frame, rAF-coalesced, NOT animation-timeline:view() — the CSS scroll-timeline ghosts the scrambled per-char title
+// in Chrome (re-rasters the layer at interpolated positions); a plain static transform renders cleanly. Each headline rides a
+// nearer plane as its chapter crosses the viewport. The title carries no transform-based entrance, so nothing conflicts.
+let pllxRaf = 0, pllxScroll = null, pllxTitles = [];
+function pllxApply(){
+  pllxRaf = 0;
+  const vh = window.innerHeight || 1, mid = vh / 2, n = pllxTitles.length, ys = new Array(n);
+  for(let i = 0; i < n; i++){                                       // READ phase — all rect reads back-to-back (one layout flush, no interleaved writes between them)
+    const r = pllxTitles[i].getBoundingClientRect();
+    ys[i] = (r.bottom < -80 || r.top > vh + 80) ? '0'              // off-screen → rest
+          : (clamp(((r.top + r.height / 2) - mid) / vh, -1, 1) * 22).toFixed(1);   // -1 (above) … +1 (below) viewport centre
+  }
+  for(let i = 0; i < n; i++){                                       // WRITE phase — only the titles whose value actually changed (no reads here → no forced reflow)
+    const t = pllxTitles[i], y = ys[i];
+    if(t._py !== y){ t._py = y; t.style.transform = y === '0' ? '' : 'translateY(' + y + 'px)'; }
+  }
+}
+function setupStaticParallax(){
+  if(mmR.matches || !mmW.matches) return;                          // reduced-motion OR not the compact shell (e.g. a no-GSAP DESKTOP fallback also takes buildStatic) → no parallax
+  pllxTitles = chapters.map(c => c.querySelector('.ch-title')).filter(Boolean);
+  if(!pllxTitles.length) return;
+  pllxScroll = () => { if(!pllxRaf) pllxRaf = requestAnimationFrame(pllxApply); };
+  window.addEventListener('scroll', pllxScroll, { passive: true });
+  window.addEventListener('resize', pllxScroll, { passive: true });   // re-prime on URL-bar collapse / orientation flip (innerHeight changes with NO scroll event); pllxScroll coalesces to one rAF
+  pllxApply();                                                     // prime initial offsets
+}
+function teardownStaticParallax(){
+  if(pllxScroll){ window.removeEventListener('scroll', pllxScroll); window.removeEventListener('resize', pllxScroll); }
+  cancelAnimationFrame(pllxRaf); pllxRaf = 0; pllxScroll = null;
+  pllxTitles.forEach(t => { t.style.transform = ''; delete t._py; });
+  pllxTitles = [];
 }
 function buildStatic(){
   sec.classList.add('is-static');
   chapters.forEach(c => { c.removeAttribute('aria-hidden'); if(SUPPORTS_INERT) c.inert = false; });
   buildStaticDescent();
+  setupStaticParallax();
   if(mmR.matches || typeof IntersectionObserver === 'undefined'){
     chapters.forEach(c => { c._on = true; c.classList.add('is-on'); lockChip(c.querySelector('.ch-status')); });   // instant reveal, no per-char motion
   } else {
@@ -289,6 +335,7 @@ function buildStatic(){
 }
 function teardown(){
   teardownSnap();
+  teardownStaticParallax();
   try { st && st.kill(); } catch(e){}
   try { dSeq && dSeq.destroy(); } catch(e){}
   try { sSeq && sSeq.destroy(); } catch(e){}
@@ -306,6 +353,7 @@ function teardown(){
   chapters.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.removeAttribute('aria-hidden'); delete c.dataset.live; delete c._o; delete c._on;
     c.classList.remove('is-on'); if(SUPPORTS_INERT) c.inert = false; else c.querySelectorAll('a,button').forEach(el => el.removeAttribute('tabindex'));
     const sub = c.querySelector('.ch-sub'); if(sub){ clearTimeout(sub._beat); sub.style.opacity = ''; }
+    [c.querySelector('.ch-cta'), c.querySelector('.ch-cue')].forEach(el => { if(el){ clearTimeout(el._beat); el.style.opacity = ''; } });   // release the sub-beat hold so a rebuild never strands them invisible
     const chip = c.querySelector('.ch-status'); if(chip){ clearTimeout(chip._lock); chip.classList.remove('is-locked'); const em = chip.querySelector('em'); if(em) em.textContent = 'Decoding'; } });
   if(mast){ mast.classList.remove('is-collapsed'); delete mast._col; }
   if(skipBtn){ skipBtn.classList.remove('is-on'); delete skipBtn._on; }
