@@ -86,8 +86,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
     im.src = srcOf(i); frames[i-1] = im; if(im.decode) im.decode().catch(() => {}); }
   function drop(im){ if(im){ im.onerror = null; im.src = ''; } }   // null onerror BEFORE blanking src so the abort doesn't trip the retry
   function setFrame(p){ const f = 1 + Math.max(0, Math.min(1, p)) * (count - 1); curF = f; const c = Math.round(f);
-    if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 24; i++) load(i);   // FORWARD-biased window — decode well ahead of the dive so the fast Iceland/clouds stretch never out-runs the WebP decode
-      for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 32){ drop(im); frames[i-1] = undefined; } } } }
+    if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 48; i++) load(i);   // wide FORWARD-biased window: 48 frames ≈ 310ms lead at peak velocity — enough headroom for a cache-miss network round-trip
+      for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 60){ drop(im); frames[i-1] = undefined; } } } }
   function coverDraw(){ const cw = earthC.width, ch = earthC.height; if(!cw) return false;
     const lo = Math.max(1, Math.min(count, Math.floor(curF))), hi = Math.min(count, lo + 1), frac = curF - lo;
     const a = frames[lo-1]; if(!isReady(a)){ load(lo); return false; }                    // FRAME-EXACT: hold the last drawn frame until this one is ready (no substitute frame → no halt-snap)
@@ -97,9 +97,15 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const b = frames[hi-1]; if(frac > 0 && isReady(b)){ octx.globalAlpha = frac; cover(b); octx.globalAlpha = 1; }
     return true; }
   const prefetchCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const WARM_PRELOAD = 50;   // warm gate checks decode-readiness of these Image objects, not just HTTP cache presence
   let fetched = 0, prefetchDone = false;
-  function prefetchAll(){ let i = 1, inflight = 0; const pump = () => { while(inflight < 6 && i <= count){ const u = srcOf(i++); inflight++;   // 6 in-flight — warm the WHOLE dive into the HTTP cache FAST so the first scroll never out-runs the WebP download (the cold-cache "stick then jump" glitch)
-      fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
+  function prefetchAll(){
+    // Pre-load the opening frames as actual Image objects right now (direct decode, not just HTTP cache).
+    // The warm gate waits for these to be isReady() so the first scroll never fires onto undecoded frames.
+    for(let k = 1; k <= Math.min(WARM_PRELOAD, count); k++) load(k);
+    let i = 1, inflight = 0;
+    const pump = () => { while(inflight < 12 && i <= count){ const u = srcOf(i++); inflight++;   // 12 in-flight, no priority:low (page is past first-paint, no contention) — fills the cache ~2× faster
+        fetch(u, { signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
     pump(); }
   // Start the whole-sequence prefetch the moment the loader releases (artix:booted) or on window load — both are PAST first paint +
   // the critical opener frames, so the warm-storm never competes with them (a prefetch at module init was a verified "frames don't
@@ -186,7 +192,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     pause: stop,
     resume: start,
     get count(){ return count; },
-    get warm(){ return prefetchDone; },   // true once the whole dive is fetched into cache — cinematic.js holds the first descent glide until then (no cold-cache stick/jump)
+    get warm(){ for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++){ if(!isReady(frames[k])) return false; } return true; },   // true once the first WARM_PRELOAD Image objects are decoded + drawable — stronger than HTTP cache presence (which can silently fail or be incomplete)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }
