@@ -322,7 +322,7 @@ function buildMobileWordmark(host){
   host.appendChild(cv);
   const ctx = cv.getContext('2d');
   const wm = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });
-  let raf = 0, settledFrames = 0, cssW = 1, cssH = 1, fs = 0, cx = 0, cy = 0;
+  let raf = 0, settledFrames = 0, cssW = 1, cssH = 1, fs = 0, cx = 0, cy = 0, lastPaint = 0;
   function size(){
     const r = host.getBoundingClientRect();
     cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
@@ -333,13 +333,22 @@ function buildMobileWordmark(host){
     cx = cssW * 0.5; cy = cssH * 0.47;                      // centred (matches the current DOM brand placing; the slogan draws below)
   }
   function paint(){ ctx.clearRect(0, 0, cssW, cssH); wm.draw(ctx, cx, cy, fs, performance.now(), 1, 1); }
-  function loop(){ paint(); if(wm.settled && ++settledFrames > 2){ raf = 0; return; } raf = requestAnimationFrame(loop); }
+  // ~30fps cap on the decode redraw: each active frame runs ~34 per-glyph ctx.filter blur + chromatic-split fills
+  // (canvas filter blur is brutal on mobile Safari). Halving the paint rate halves that cost; a 2.7s blur/churn
+  // transition at 30fps is indistinguishable from 60fps (film is 24fps). Loop stays alive every rAF; only paint throttles.
+  function loop(now){
+    raf = requestAnimationFrame(loop);
+    if((now || 0) - lastPaint < 32) return;
+    lastPaint = now || 0;
+    paint();
+    if(wm.settled && ++settledFrames > 2){ cancelAnimationFrame(raf); raf = 0; }
+  }
   const onResize = () => { size(); if(!raf){ settledFrames = 0; paint(); } };   // URL-bar collapse / orientation: a settled wordmark re-bakes at the new fs inside draw()
   size();
   window.addEventListener('resize', onResize, { passive: true });
   return {
     scrambleIn(){
-      size(); wm.scrambleIn(performance.now()); settledFrames = 0;
+      size(); wm.scrambleIn(performance.now()); settledFrames = 0; lastPaint = 0;
       if(mmR.matches){ paint(); return; }                  // reduced-motion → draw resolved instantly, no loop
       cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     },
