@@ -307,11 +307,11 @@ function teardownSnap(){
 function buildAnimated(){
   gsap.registerPlugin(ScrollTrigger);
   dCanvas = dStage.querySelector('.descent-canvas');
-  dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356,
+  dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 367,
     settings: { ampMul: 0.59, ctr: 0.175, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 } });
   if(dSeq){ dStage.classList.add('is-lens');             // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
     try { stars = createStarfield({ host: dStage, reduced: mmR.matches }); if(stars) stars.start(); } catch(e){ stars = null; } }   // orbital sky at idle (only over the live WebGL hero)
-  else dSeq = createSequence({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356 });   // no-WebGL fallback: plain scrub, no lens
+  else dSeq = createSequence({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 367 });   // no-WebGL fallback: plain scrub, no lens
   sSeq = createSequence({ canvas: sStage.querySelector('.story-canvas'),   dir: '/assets/story-frames/',   count: 480 });
   st = ScrollTrigger.create({ trigger: sec, start: 'top top', end: 'bottom bottom', pin: stage, scrub: 0.6, invalidateOnRefresh: true, onUpdate: (self) => paint(self.progress) });
   setupGestureAdvance();                                  // gesture-advance choreography (descent-as-segment + chapter steps) — see doGestureAdvance
