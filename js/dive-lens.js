@@ -88,15 +88,11 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function setFrame(p){ const f = 1 + Math.max(0, Math.min(1, p)) * (count - 1); curF = f; const c = Math.round(f);
     if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 24; i++) load(i);   // FORWARD-biased window — decode well ahead of the dive so the fast Iceland/clouds stretch never out-runs the WebP decode
       for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 32){ drop(im); frames[i-1] = undefined; } } } }
-  function nearestReady(idx){ if(isReady(frames[idx-1])) return idx;                     // exact frame ready
-    for(let d = 1; d <= 12; d++){ if(isReady(frames[idx-1-d])) return idx - d; if(isReady(frames[idx-1+d])) return idx + d; } return 0; }
   function coverDraw(){ const cw = earthC.width, ch = earthC.height; if(!cw) return false;
     const lo = Math.max(1, Math.min(count, Math.floor(curF))), hi = Math.min(count, lo + 1), frac = curF - lo;
+    const a = frames[lo-1]; if(!isReady(a)){ load(lo); return false; }                    // FRAME-EXACT: hold the last drawn frame until this one is ready (no substitute frame → no halt-snap)
     const cover = (im) => { const ir = im.naturalWidth / im.naturalHeight, cr = cw / ch; let w, h;
       if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } octx.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h); };
-    const a = frames[lo-1];
-    if(!isReady(a)){ load(lo); const nr = nearestReady(lo); if(!nr) return false;        // DECODE MISS: draw the NEAREST loaded frame so the camera keeps MOVING (was: bail → freeze on the last frame = the stutter). Return 'near' so we re-try the exact frame next tick.
-      octx.globalAlpha = 1; cover(frames[nr-1]); return 'near'; }
     octx.globalAlpha = 1; cover(a);
     const b = frames[hi-1]; if(frac > 0 && isReady(b)){ octx.globalAlpha = frac; cover(b); octx.globalAlpha = 1; }
     return true; }
@@ -149,12 +145,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
     let resized = false;
     if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); resized = true; }
-    // earthC = the texture re-uploaded to the GPU EVERY scrubbed frame. The dive frames are ~1600×900, so a 2880px backing store
-    // just uploads ~3× the pixels per frame for no sharpness gain → GPU-side stutter. Cap it to ~source res (same aspect). The
-    // shader samples it by normalized UV, so a smaller earth texture is invisible; the wmc (sharp ARTIX) stays full-res.
-    const EMAX = 1600, es = Math.min(1, EMAX / Math.max(w, h));
-    const ew = Math.max(2, Math.round(w * es)), eh = Math.max(2, Math.round(h * es));
-    if(earthC.width !== ew || earthC.height !== eh){ earthC.width = ew; earthC.height = eh; resized = true; }
+    if(earthC.width !== w || earthC.height !== h){ earthC.width = w; earthC.height = h; resized = true; }   // earthC = canvas res (FULL quality — must match the story frames so the dive→coast hand-off is seamless, no blurry→sharp snap)
     if(wmc.width !== w || wmc.height !== h){ wmc.width = w; wmc.height = h; resized = true; }
     return resized;
   }
@@ -162,10 +153,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   let painted = false;
   function frame(){
     const resized = fit();
-    if(curF !== lastDrawnF || resized){ const drew = coverDraw();                        // earthC only changes when the frame/blend moves or on resize
-      if(drew === true){ lastDrawnF = curF; earthDirty = true; }
-      else if(drew === 'near'){ earthDirty = true; }                                      // drew a SUBSTITUTE frame on a decode miss — don't latch lastDrawnF, so the exact frame still draws once it lands
-    }
+    if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; } }   // earthC only changes when the frame/blend moves or on resize
     if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
     const wmChanged = drawWordmark();
     try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);

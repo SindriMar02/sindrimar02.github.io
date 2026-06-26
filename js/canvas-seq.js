@@ -28,13 +28,9 @@ export function createSequence({ canvas, dir, count }){
   function drop(im){ if(im){ im.onload = null; im.onerror = null; im.src = ''; } }   // null handlers BEFORE blanking src so the abort doesn't trip onerror/retry
   function cover(img){ const ir = img.naturalWidth / img.naturalHeight, cr = cw / ch; let w, h;   // draw cover-fit DIRECTLY (no per-frame [x,y,w,h] array alloc → no GC saw-tooth in the scrub hot path)
     if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h); }
-  function nearestReady(idx){ if(isReady(frames[idx-1])) return idx;
-    for(let d = 1; d <= 12; d++){ if(isReady(frames[idx-1-d])) return idx - d; if(isReady(frames[idx-1+d])) return idx + d; } return 0; }
   function draw(f){ curF = f; if(!cw) return;
     const lo = Math.max(1, Math.min(n, Math.floor(f))), hi = Math.min(n, lo + 1), frac = f - lo;
-    const a = frames[lo-1];
-    if(!isReady(a)){ load(lo); const nr = nearestReady(lo); if(!nr) return;             // decode miss: draw the NEAREST loaded frame so the scrub keeps moving (was: hold the last frame → stall); the exact frame still loads + draws when ready
-      ctx.globalAlpha = 1; cover(frames[nr-1]); return; }
+    const a = frames[lo-1]; if(!isReady(a)){ load(lo); return; }       // FRAME-EXACT: hold the last good frame until this one is loaded (no substitute frame)
     ctx.globalAlpha = 1; cover(a);                                    // opaque cover-fill overwrites all → no clearRect needed
     const b = frames[hi-1]; if(frac > 0 && isReady(b)){ ctx.globalAlpha = frac; cover(b); ctx.globalAlpha = 1; } }
   function preload(center, radius){ for(let i = center - radius; i <= center + radius; i++) load(i); }

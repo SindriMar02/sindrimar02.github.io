@@ -8,6 +8,7 @@ import { createSequence } from '/js/canvas-seq.js';
 import { createDiveLens } from '/js/dive-lens.js';
 import { scramble } from '/js/scramble.js';
 import { createWordmarkDecode } from '/js/artix-wordmark-decode.js';   // SAME hero wordmark decode the desktop dive-lens uses — rendered on a plain 2D canvas for the mobile static hero
+import { createStarfield } from '/js/starfield.js';                    // orbital night sky over the dive hero — alive at rest, fades out as the dive begins
 import { setProgress as busProgress } from '/js/progress-bus.js';
 
 const COORD = '64.13°N 21.95°W';                // descent coast fix — Spec v1 §02 (exact). NB: footer/closing use the Akranes HQ fix 64.32°N 22.08°W
@@ -31,6 +32,7 @@ let chapters = [], rail, railFill, railNum, skipBtn, activePrev = -1;
 let mmW, mmR, onMM, onBooted, onSkip, built = false, phaseStory = false, staticIO = null, staticTimers = [];
 let segTargets = [], snapLockT = 0, snapAnim = false, coolUntil = 0, glideRaf = 0, touchY = 0, onSnapInput = null, onSnapKey = null, onTouchStart = null, onTouchMove = null;
 let mobileWm = null;   // mobile/static hero wordmark — the desktop decode module on a 2D canvas (built in buildStaticDescent)
+let stars = null;      // orbital starfield (desktop WebGL hero only; idle-only — fades out as the dive begins)
 
 /* ───────── PHASE 1 · orbital descent ───────── */
 function revealBrand(){
@@ -82,6 +84,7 @@ function renderDescent(dP){
   // → coast) AND composites the crystallise-ice ARTIX wordmark that tears through the lens. All the old DOM frost/shatter
   // choreography is gone — the wordmark lives in the canvas now. We only keep the live telemetry datum + header collapse.
   if(dSeq) dSeq.setProgress(dP);
+  if(stars) stars.setProgress(dP);                       // orbital sky fades out as the dive carries past it (gone by dP≈0.045)
   setLock(dP > 0.05);                                    // datum: ACQUIRING → LOCK
   setTelemetry(dP);                                      // altitude + velocity fall as the camera descends
   // seam prep: fade the bottom gradient out over the last 15% of descent so it matches the story (scrim=0 at seam=0)
@@ -257,7 +260,8 @@ function buildAnimated(){
   dCanvas = dStage.querySelector('.descent-canvas');
   dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356,
     settings: { ampMul: 0.59, ctr: 0.175, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 } });
-  if(dSeq) dStage.classList.add('is-lens');              // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
+  if(dSeq){ dStage.classList.add('is-lens');             // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
+    try { stars = createStarfield({ host: dStage, reduced: mmR.matches }); if(stars) stars.start(); } catch(e){ stars = null; } }   // orbital sky at idle (only over the live WebGL hero)
   else dSeq = createSequence({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356 });   // no-WebGL fallback: plain scrub, no lens
   sSeq = createSequence({ canvas: sStage.querySelector('.story-canvas'),   dir: '/assets/story-frames/',   count: 480 });
   st = ScrollTrigger.create({ trigger: sec, start: 'top top', end: 'bottom bottom', pin: stage, scrub: 0.6, invalidateOnRefresh: true, onUpdate: (self) => paint(self.progress) });
@@ -395,6 +399,7 @@ function teardown(){
   if(staticIO){ staticIO.disconnect(); staticIO = null; }
   staticTimers.forEach(fn => { try { fn(); } catch(e){} }); staticTimers = [];
   if(mobileWm){ try { mobileWm.destroy(); } catch(e){} mobileWm = null; }
+  if(stars){ try { stars.destroy(); } catch(e){} stars = null; }
   cancelAnimationFrame(frostRaf); if(frostDisp){ frostDisp.setAttribute('scale', '0'); delete frostDisp._s; }
   if(telAlt) delete telAlt._v; if(telVel) delete telVel._v;
   if(descentScrim){ descentScrim.style.opacity = ''; delete descentScrim._op; }
