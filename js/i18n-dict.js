@@ -11,7 +11,7 @@ export const IS = {
   "nav.link.industries": "Atvinnugreinar",
   "nav.link.government": "Hið opinbera",
   "nav.link.about": "Um okkur",
-  "nav.cta.request_briefing": "Óska eftir kynningarfundi",
+  "nav.cta.request_briefing": "Bókaðu fund",
   "nav.burger.open.aria_label": "Opna valmynd",
   "nav.burger.close.aria_label": "Loka valmynd",
   "nav.drawer.aria_label": "Valmynd",

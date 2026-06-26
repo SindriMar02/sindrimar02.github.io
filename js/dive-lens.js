@@ -120,7 +120,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // glow (re-added in the decode module), the scroll-driven zoom-through, and the WebGL lens/chromatic-tear composite unchanged.
   const wmc = document.createElement('canvas'); const wmctx = wmc.getContext('2d');
   if(document.fonts){ document.fonts.load('400 100px Michroma').catch(() => {}); document.fonts.load('500 100px "Martian Mono"').catch(() => {}); }
-  const wmDecode = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });   // 220ms per letter = strict sequential (A→R→T→I→X)
+  const wmDecode = createWordmarkDecode({ subGap: 0.8, titleStagger: 220, sub: document.documentElement.lang === 'is' ? 'ÚTVEGAÐ. AFHENT. STUTT.' : 'SOURCED. DELIVERED. SUPPORTED.' });   // 220ms per letter = strict sequential (A→R→T→I→X)
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
   let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws

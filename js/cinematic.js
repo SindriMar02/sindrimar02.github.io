@@ -321,7 +321,7 @@ function buildMobileWordmark(host){
   cv.setAttribute('aria-hidden', 'true');
   host.appendChild(cv);
   const ctx = cv.getContext('2d');
-  const wm = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });
+  const wm = createWordmarkDecode({ subGap: 0.8, titleStagger: 220, sub: document.documentElement.lang === 'is' ? 'ÚTVEGAÐ. AFHENT. STUTT.' : 'SOURCED. DELIVERED. SUPPORTED.' });
   let raf = 0, settledFrames = 0, cssW = 1, cssH = 1, fs = 0, cx = 0, cy = 0, lastPaint = 0, decoding = false;
   // The DECODE phase is fuzzy by design (chromatic split + focus-pull blur), so it doesn't need full retina res —
   // and canvas filter-blur cost scales with pixel area (∝ dpr²). Rasterise the churn at a reduced DPR (1.5) to cut
