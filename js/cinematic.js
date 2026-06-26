@@ -198,13 +198,11 @@ function paint(p){
 function buildSegments(){ const N = chapters.length || 8; segTargets = [0];                 // index 0 = top (p=0); index 1 = ch0 (=SPLIT); … index N = ch(N-1) (=1.0)
   for(let k = 0; k < N; k++) segTargets.push(SPLIT + (k / (N - 1)) * (1 - SPLIT)); }
 const SNAP_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar']);
-// DESCENT ease = quintic SMOOTHERSTEP: ZERO velocity AND ZERO acceleration at both ends, so the dive launches AND — the point here —
-// SETTLES to its halt with no jerk. The old easeInOutSine arrived too directly and read as a "snap into frame" at the coast.
-// Peak velocity 1.875× avg (vs sine's 1.57×); the longer 3.6s glide (below) drops the peak FRAME-rate back to ≈ the proven
-// decode-safe sine@3.0s, so the 356-frame dive still never out-runs the WebP decode (no mid-dive Iceland/clouds stutter).
-const easeSmoother = t => t * t * t * (t * (t * 6 - 15) + 10);
-// CHAPTER ease = easeInOutQuart: a long, floaty deceleration tail so the video frame "settles" to a halt instead of landing abruptly.
-const easeQuart = t => (t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2);
+// UNIFIED ease = easeInOutSine for ALL glides (descent + chapters). Has zero velocity at both ends (no jerk at start or halt)
+// but non-zero acceleration immediately at t=0 — motion is visible from the first frame (~2.45% at 360ms vs quintic's 0.86%).
+// Same shape for every scroll-start so the trigger delay feels identical whether entering descent or advancing a chapter.
+// Peak velocity 1.57× avg (lower than the old quintic's 1.875×) — well within the frame-decode budget at 3.6s/2.4s.
+const easeSlide = t => -(Math.cos(Math.PI * t) - 1) / 2;
 function lenisY(){ return (window.__lenis && typeof window.__lenis.scroll === 'number') ? window.__lenis.scroll : (window.scrollY || 0); }
 function scrollProgress(){ if(!st) return 0; return clamp((lenisY() - st.start) / Math.max(1, st.end - st.start), 0, 1); }
 // Own the glide via rAF + scrollTo(immediate): we set the EXACT eased position every frame, which overwrites any wheel/trackpad
@@ -253,7 +251,7 @@ function doGestureAdvance(dir){
   if(descentMove && dir > 0 && !warmForce && dSeq && dSeq.warm === false){ descentQueued = dir; armWarmFire(); return; }
   const dur = descentMove ? 3.6 : 2.4;                        // SLOW + smooth: the full dive glides over 3.6s (smootherstep settle); each chapter over 2.4s — slower so the footage between chapters reads
   snapAnim = true;
-  runGlide(st.start + target * (st.end - st.start), dur, descentMove ? easeSmoother : easeQuart);   // smootherstep = flat-accel launch + floaty settle for the dive; quart = floaty halt for chapters
+  runGlide(st.start + target * (st.end - st.start), dur, easeSlide);
 }
 // poll dive readiness; once the frames are cached (or a 6s fallback), fire the queued descent glide so it scrubs smoothly from the start
 function armWarmFire(){
