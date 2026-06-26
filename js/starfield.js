@@ -60,7 +60,7 @@ export function createStarfield({ host, density = 1, reduced = false }){
   // ── star generation (normalized positions so they're resolution-independent across resizes) ──
   function build(){
     const area = (host.clientWidth * host.clientHeight) || (1440 * 900);
-    const N = Math.round(Math.max(90, Math.min(280, 150 * Math.sqrt(area / (1440 * 900)) * density)));
+    const N = Math.round(Math.max(160, Math.min(420, 150 * Math.sqrt(area / (1440 * 900)) * density)));
     stars = new Array(N);
     // a soft diagonal "galactic band" — a fraction of the stars are extra-faint dust clustered along this axis (Milky-Way feel)
     const bandAng = -0.34, ca = Math.cos(bandAng), sa = Math.sin(bandAng);   // band axis ≈ -20°, upper diagonal (away from the low-right Earth)
@@ -83,8 +83,8 @@ export function createStarfield({ host, density = 1, reduced = false }){
         x, y, layer,
         mag,
         col: [col[0], col[1], col[2]],
-        baseA: 0.30 + 0.70 * Math.pow(mag, 0.7),                  // faint stars genuinely dim
-        twAmp: twinkles ? (0.12 + 0.46 * mag) : 0,                // brighter stars scintillate more visibly
+        baseA: 0.12 + 0.46 * Math.pow(mag, 0.65),                  // dimmer overall — deep-field depth
+        twAmp: twinkles ? (0.07 + 0.30 * mag) : 0,                // less scintillation on distant stars
         tws: (Math.PI * 2) / period, tph: rand() * 7, tph2: rand() * 7,
         hero: false, sprite: null, half: 0,
         // drift: very slow celestial creep — near plane a touch quicker; mostly lateral, slight rise as we descend
@@ -99,9 +99,9 @@ export function createStarfield({ host, density = 1, reduced = false }){
 
   // ── per-star sprite bake (device px; re-baked on resize so stars scale with the viewport and stay crisp on HiDPI) ──
   function bakeStar(s){
-    const r = (s.hero ? 1.7 : 0.5 + 1.4 * s.mag) * unit * dpr;   // core radius
-    const glow = (s.hero ? 5.0 : 3.2) * r;
-    const spike = s.hero ? 9.5 * r : 0;
+    const r = (s.hero ? 1.0 : 0.26 + 0.80 * s.mag) * unit * dpr;  // smaller cores — far-field depth
+    const glow = (s.hero ? 3.4 : 2.1) * r;
+    const spike = s.hero ? 6.0 * r : 0;
     const half = Math.ceil(Math.max(glow, spike) + 2);
     const cv = document.createElement('canvas'); cv.width = cv.height = half * 2;
     const g = cv.getContext('2d'); const cx = half, cy = half;
@@ -172,7 +172,9 @@ export function createStarfield({ host, density = 1, reduced = false }){
       if(s.twAmp){ const f1 = 0.5 + 0.5 * Math.sin(t * s.tws + s.tph);
         const f2 = 0.5 + 0.5 * Math.sin(t * s.tws * 1.7 + s.tph2);
         tw = 1 - s.twAmp * (f1 * 0.7 + f2 * 0.3); }                  // two summed frequencies → organic, non-uniform scintillation
-      ctx.globalAlpha = Math.max(0, s.baseA * tw * F);
+      const ea = s.y < 0.58 ? 1 : s.y > 0.82 ? 0 : 1 - (s.y - 0.58) / 0.24;  // fade out over Earth globe
+      if(ea <= 0) continue;
+      ctx.globalAlpha = Math.max(0, s.baseA * tw * F * ea);
       ctx.drawImage(s.sprite, s.x * W - s.half, s.y * H - s.half);
     }
     ctx.globalCompositeOperation = 'source-over';

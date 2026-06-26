@@ -387,6 +387,15 @@ html:not(.js) .boot{display:none!important;}
     linear-gradient(var(--rc),var(--rc)) bottom right/var(--rt) var(--rl) no-repeat;}
 /* mobile static: the hero is a normal stacked block (cue + chip already hidden ≤860) — drop the lens frame so it doesn't box the short card */
 @media (max-width:860px){.cinematic.is-static .chapter-hero::after{display:none;}}
+/* HERO ENTRANCE — the title + reticle frame EASE in as the camera settles at the coast, instead of snapping to full presence at the
+   seam (the eyebrow/sub/cue already fade via .is-on; the big title + frame used to pop, which read as the headline "snapping into
+   frame"). cinematic.js adds .is-on the instant chapter-0 becomes active == the gesture glide's halt, so this plays as a timed reveal
+   ALONGSIDE the decode: smooth glide → smooth settle → text animates into view + decodes. Scoped to html.js so no-JS keeps it visible. */
+html.js .chapter-hero .ch-title{opacity:0;transition:opacity 1s var(--ease-expo) .08s;}
+html.js .chapter-hero.is-on .ch-title{opacity:1;}
+html.js .chapter-hero::after{opacity:0;transition:opacity 1.2s var(--ease) .22s;}
+html.js .chapter-hero.is-on::after{opacity:.45;}
+@media (prefers-reduced-motion:reduce){html.js .chapter-hero .ch-title,html.js .chapter-hero::after{transition:none;}}
 
 /* (story grain removed — .cinematic-stage::after already grains the whole stage, and mix-blend:overlay here recomposited every scrubbed frame) */
 /* .story-vignette is now display:none — vignette is on .cinematic-stage::before */

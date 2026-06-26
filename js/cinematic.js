@@ -197,9 +197,11 @@ function paint(p){
 function buildSegments(){ const N = chapters.length || 8; segTargets = [0];                 // index 0 = top (p=0); index 1 = ch0 (=SPLIT); … index N = ch(N-1) (=1.0)
   for(let k = 0; k < N; k++) segTargets.push(SPLIT + (k / (N - 1)) * (1 - SPLIT)); }
 const SNAP_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar']);
-// DESCENT ease = easeInOutSine: LOW peak velocity (~1.6× avg, vs cubic's 3×) so the 356-frame dive never scrubs faster than the
-// WebP decode can keep up — kills the Iceland/clouds (mid-dive) stutter — and still eases gently in/out.
-const easeSine = t => (1 - Math.cos(Math.PI * t)) / 2;
+// DESCENT ease = quintic SMOOTHERSTEP: ZERO velocity AND ZERO acceleration at both ends, so the dive launches AND — the point here —
+// SETTLES to its halt with no jerk. The old easeInOutSine arrived too directly and read as a "snap into frame" at the coast.
+// Peak velocity 1.875× avg (vs sine's 1.57×); the longer 3.6s glide (below) drops the peak FRAME-rate back to ≈ the proven
+// decode-safe sine@3.0s, so the 356-frame dive still never out-runs the WebP decode (no mid-dive Iceland/clouds stutter).
+const easeSmoother = t => t * t * t * (t * (t * 6 - 15) + 10);
 // CHAPTER ease = easeInOutQuart: a long, floaty deceleration tail so the video frame "settles" to a halt instead of landing abruptly.
 const easeQuart = t => (t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2);
 function lenisY(){ return (window.__lenis && typeof window.__lenis.scroll === 'number') ? window.__lenis.scroll : (window.scrollY || 0); }
@@ -207,17 +209,33 @@ function scrollProgress(){ if(!st) return 0; return clamp((lenisY() - st.start) 
 // Own the glide via rAF + scrollTo(immediate): we set the EXACT eased position every frame, which overwrites any wheel/trackpad
 // momentum Lenis adds mid-glide (this build's lock:true / stop()+force are broken, so a lock:false lenis.scrollTo gets pushed
 // off-target by the momentum tail). Result: a committed, momentum-immune glide of a precise duration.
+// After the eased glide reaches the stop, run a short SETTLE TAIL instead of releasing on the spot. Releasing at k=1 was what
+// made the halt read as shaky/abrupt: the trackpad MOMENTUM TAIL is still feeding Lenis's own wheel handler, so the instant the
+// glide stopped overriding, those late events nudged Lenis a few px PAST the stop — the scrub then chased the stuttering momentum
+// decay (jiggle) and dead-stopped when it died (abrupt). The settle keeps the scroll PINNED to the exact target AND pumps
+// ScrollTrigger.update() each frame for one scrub-length, so the momentum is absorbed and the scrub coasts cleanly onto the exact
+// target frame — a smooth glide to a crisp, dead stop. Pure bounded tail work (it ends) → no standing per-frame cost.
+const SETTLE_MS = 520;
 function runGlide(targetY, dur, ease){
   cancelAnimationFrame(glideRaf); clearTimeout(snapLockT);
   const startY = lenisY(), span = targetY - startY, t0 = performance.now();
-  const finish = () => { glideRaf = 0; clearTimeout(snapLockT); snapAnim = false; coolUntil = performance.now() + 300; };   // brief cooldown swallows the momentum tail so it can't chain a step
+  const L = window.__lenis;
+  const finish = () => { glideRaf = 0; clearTimeout(snapLockT); snapAnim = false; coolUntil = performance.now() + 60; };   // settle already swallowed the momentum tail — only a hair of cooldown left
+  let settleT0 = 0;
   const step = (now) => {
     const k = clamp((now - t0) / (dur * 1000), 0, 1);
-    if(window.__lenis && window.__lenis.scrollTo) window.__lenis.scrollTo(startY + span * ease(k), { immediate: true });
-    if(k < 1){ glideRaf = requestAnimationFrame(step); } else finish();
+    if(k < 1){                                                                       // EASE phase: drive the eased position, overriding any momentum Lenis adds
+      if(L && L.scrollTo) L.scrollTo(startY + span * ease(k), { immediate: true });
+      glideRaf = requestAnimationFrame(step);
+    } else {                                                                         // SETTLE phase: pin the exact stop + keep feeding the scrub so it coasts to rest without drift
+      if(L && L.scrollTo) L.scrollTo(targetY, { immediate: true });
+      if(typeof ScrollTrigger !== 'undefined') ScrollTrigger.update();
+      if(!settleT0) settleT0 = now;
+      if(now - settleT0 < SETTLE_MS){ glideRaf = requestAnimationFrame(step); } else finish();
+    }
   };
   glideRaf = requestAnimationFrame(step);
-  snapLockT = setTimeout(finish, dur * 1000 + 600);          // failsafe unlock if the rAF stalls (e.g. backgrounded)
+  snapLockT = setTimeout(finish, dur * 1000 + SETTLE_MS + 600);   // failsafe unlock if the rAF stalls (e.g. backgrounded)
 }
 function doGestureAdvance(dir){
   if(!st || snapAnim || !dir || !window.__lenis || !window.__lenis.scrollTo) return;
@@ -229,9 +247,9 @@ function doGestureAdvance(dir){
   else { for(let i = segTargets.length - 1; i >= 0; i--){ if(segTargets[i] < p - 0.012){ target = segTargets[i]; break; } } }
   if(target == null) return;                                  // already at the final stop in that direction
   const descentMove = (dir > 0 && p < SPLIT - 0.01 && target >= SPLIT - 0.01) || (dir < 0 && target < 0.01);
-  const dur = descentMove ? 3.0 : 1.6;                        // SLOW + smooth: the full dive glides over 3.0s, each chapter over 1.6s
+  const dur = descentMove ? 3.6 : 1.6;                        // SLOW + smooth: the full dive glides over 3.6s (smootherstep settle), each chapter over 1.6s
   snapAnim = true;
-  runGlide(st.start + target * (st.end - st.start), dur, descentMove ? easeSine : easeQuart);   // sine = even frame-rate (decode-friendly) for the dive; quart = floaty halt for chapters
+  runGlide(st.start + target * (st.end - st.start), dur, descentMove ? easeSmoother : easeQuart);   // smootherstep = flat-accel launch + floaty settle for the dive; quart = floaty halt for chapters
 }
 function setupGestureAdvance(){
   buildSegments();
