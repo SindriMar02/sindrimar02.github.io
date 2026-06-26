@@ -314,6 +314,7 @@ html:not(.js) .boot{display:none!important;}
 .footer-legal{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);flex-wrap:nowrap;border-top:1px solid var(--hairline);
   padding-top:var(--space-5);font-family:var(--font-mono);font-size:var(--fs-mono-micro);
   letter-spacing:var(--track-mono-ui);color:var(--text-dim);}
+.footer-legal-nav{display:flex;align-items:center;}   /* flex kills the inline-block baseline gap that made About/Contact ride low vs the © line on touch (the link's extra tap-padding) */
 .footer-legal-nav a{margin-left:var(--space-4);color:var(--text-dim);text-decoration:none;}
 
 /* THE GRID — one pseudo-element. Seamless 54px square tile (1px frost-at-6.5% line, identical on both axes),
@@ -819,6 +820,12 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
   .ch-title{font-size:clamp(1.7rem,6.6vw,2.4rem);}
   .cinematic.is-static .chapter{gap:var(--space-4);}
   .cinematic.is-static .descent-word{font-size:clamp(2.3rem,9vw,3.4rem);}   /* fits one line within the reticle on a phone */
+  /* Bottom-left HUD cluster: the centred LOCK coordinate readout was landing right on top of the
+     RECON·LIVE / ALT / VEL telemetry. On phones, left-align it and lift it clear of the stack so the
+     two read as one cohesive instrument column instead of a crowded pile-up. */
+  .descent-hud{bottom:calc(clamp(14px,2.4vw,30px) + env(safe-area-inset-bottom,0px));}
+  .cinematic.is-static .descent-coord{left:var(--pad);right:auto;transform:none;text-align:left;white-space:nowrap;
+    bottom:calc(5.7rem + env(safe-area-inset-bottom,0px));}
   /* hero status chip → top-left under the eyebrow so it clears the burger + pill */
   .ch-status{top:max(env(safe-area-inset-top),5.2rem);right:auto;left:var(--pad);}
   /* display headlines tamed for the narrow column + safe wrapping */
