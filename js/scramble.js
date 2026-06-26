@@ -14,6 +14,12 @@ const smooth = t => t * t * (3 - 2 * t);   // smoothstep — gentle in/out, no r
 const SPLIT_CYAN   = 'rgb(0,200,236)';                                         // chromatic fringe — left offset
 const SPLIT_VIOLET = 'rgb(132,152,255)';                                       // chromatic fringe — right offset
 const CHURN_CORE   = 'rgb(126,204,234)';                                       // dim-ice churn core (wordmark churn colour)
+// scan churn renders in the LIGHT instrument mono (like the hero wordmark, which churns in Martian Mono before
+// resolving to Michroma) — the chapter titles' final font is heavy display Sora 700/800, so churning IN that font
+// read as big/bold blocks, nothing like the wordmark. Churn light-mono, then resolve back to the inherited display
+// face on lock → the same "light technical scramble → bold headline" beat as the wordmark.
+const MONO_FAM     = '"Martian Mono", ui-monospace, Menlo, monospace';
+const MONO_WT      = '400';
 const FLARE_CORE   = 'rgb(166,226,246)';                                       // brighter core as the char flares/locks
 const FLARE_GLOW   = 'rgba(116,198,230,.42)';                                  // ice glow at the flare — kept subtle (≈ the wordmark's glyphFs*0.18 glow) so a 40-char headline's overlapping flares don't wash the footage white
 
@@ -57,7 +63,7 @@ export function scramble(el, opts = {}){
   let lastSwap = 0;
   // _lc/_ls/_lf (scan colour+shadow+focus-blur) and _lo/_lf/_lt (rise opacity/filter/transform) cache the last written value per
   // span, so we only touch the DOM when a value actually changes (the churn glyph swap still fires on its own 50ms clock).
-  if(scan) chars.forEach(s => { if(!s.dataset.space){ s.style.opacity = '1'; s.style.color = CHURN_CORE; s._lc = CHURN_CORE; } });
+  if(scan) chars.forEach(s => { if(!s.dataset.space){ s.style.opacity = '1'; s.style.color = CHURN_CORE; s.style.fontFamily = MONO_FAM; s.style.fontWeight = MONO_WT; s._lc = CHURN_CORE; } });
   else chars.forEach(s => { if(!s.dataset.space){ s.style.opacity = '0'; s._lo = '0'; } });
   const step = (now) => {
     const t = now - t0;
@@ -71,7 +77,7 @@ export function scramble(el, opts = {}){
       if(scan){
         if(p >= 1){
           if(s.textContent !== s.dataset.final) s.textContent = s.dataset.final;
-          if(s._lc !== ''){ s.style.color = ''; s._lc = ''; }                     // resolve → inherits frost
+          if(s._lc !== ''){ s.style.color = ''; s.style.fontFamily = ''; s.style.fontWeight = ''; s._lc = ''; }   // resolve → inherits frost + heavy display face
           if(s._ls !== ''){ s.style.textShadow = ''; s._ls = ''; }
           if(s._lf !== ''){ s.style.filter = ''; s._lf = ''; }                    // clear the focus-pull blur
         } else {
@@ -103,7 +109,7 @@ export function scramble(el, opts = {}){
       }
     }
     if(running){ el._raf = requestAnimationFrame(step); }
-    else { chars.forEach(s => { s.textContent = s.dataset.final; s.style.opacity = ''; s.style.filter = ''; s.style.transform = ''; s.style.color = ''; s.style.textShadow = ''; s._lc = s._ls = s._lo = s._lf = s._lt = undefined; }); el._raf = null; }
+    else { chars.forEach(s => { s.textContent = s.dataset.final; s.style.opacity = ''; s.style.filter = ''; s.style.transform = ''; s.style.color = ''; s.style.textShadow = ''; s.style.fontFamily = ''; s.style.fontWeight = ''; s._lc = s._ls = s._lo = s._lf = s._lt = undefined; }); el._raf = null; }
   };
   el._raf = requestAnimationFrame(step);
 }
@@ -111,6 +117,6 @@ export function scramble(el, opts = {}){
 export function resetScramble(el){
   if(!el) return;
   if(el._raf){ cancelAnimationFrame(el._raf); el._raf = null; }
-  if(el.dataset.split === '1' && el._chars) el._chars.forEach(s => { s.textContent = s.dataset.final; s.style.opacity = ''; s.style.filter = ''; s.style.transform = ''; s.style.color = ''; s.style.textShadow = ''; s._lc = s._ls = s._lo = s._lf = s._lt = undefined; });
+  if(el.dataset.split === '1' && el._chars) el._chars.forEach(s => { s.textContent = s.dataset.final; s.style.opacity = ''; s.style.filter = ''; s.style.transform = ''; s.style.color = ''; s.style.textShadow = ''; s.style.fontFamily = ''; s.style.fontWeight = ''; s._lc = s._ls = s._lo = s._lf = s._lt = undefined; });
   else if(el.dataset.text != null) el.textContent = el.dataset.text;
 }
