@@ -372,7 +372,11 @@ html:not(.js) .boot{display:none!important;}
 /* scroll cue → a framed bottom-centre affordance: caption · drawn hairline · bobbing arrow (chapters use inline text links instead) */
 .chapter-hero .ch-cue{position:absolute;left:0;right:0;bottom:clamp(2.4rem,9vh,5rem);margin:0;max-width:none;display:flex;flex-direction:column;align-items:center;gap:.65rem;color:var(--text-faint);}   /* max-width:none overrides .chapter p's --measure cap — otherwise left:0/right:0 pins the box left (width=measure) instead of centring */
 .chapter-hero .ch-cue::after{content:"";order:1;width:1px;height:clamp(16px,3.6vh,28px);background:linear-gradient(180deg,var(--accent-signal),transparent);opacity:.65;}
-.chapter-hero .ch-cue span{order:2;color:var(--accent-signal);}
+/* arrow → a CSS-drawn down-chevron (not the ↓ glyph, whose font side-bearings can render off-centre); guaranteed on the same
+   vertical axis as the hairline. The span keeps the cuebob (translateY); the ::before draws + centres the chevron independently. */
+.chapter-hero .ch-cue span{order:2;width:.7rem;height:.5rem;position:relative;font-size:0;color:transparent;}
+.chapter-hero .ch-cue span::before{content:"";position:absolute;left:50%;top:0;width:.46rem;height:.46rem;
+  border-right:1.5px solid var(--accent-signal);border-bottom:1.5px solid var(--accent-signal);transform:translateX(-50%) rotate(45deg);}
 /* reticle corner brackets — frame the cover like a camera lock (one element, 8 corner bars); fades out with the hero on scroll */
 .chapter-hero::after{content:"";position:absolute;inset:clamp(2rem,8vh,5rem) clamp(.5rem,3vw,2rem);pointer-events:none;z-index:1;opacity:.45;
   --rc:var(--accent-signal);--rt:1px;--rl:20px;
@@ -391,11 +395,11 @@ html:not(.js) .boot{display:none!important;}
    seam (the eyebrow/sub/cue already fade via .is-on; the big title + frame used to pop, which read as the headline "snapping into
    frame"). cinematic.js adds .is-on the instant chapter-0 becomes active == the gesture glide's halt, so this plays as a timed reveal
    ALONGSIDE the decode: smooth glide → smooth settle → text animates into view + decodes. Scoped to html.js so no-JS keeps it visible. */
-html.js .chapter-hero .ch-title{opacity:0;transition:opacity 1s var(--ease-expo) .08s;}
-html.js .chapter-hero.is-on .ch-title{opacity:1;}
-html.js .chapter-hero::after{opacity:0;transition:opacity 1.2s var(--ease) .22s;}
+html.js .chapter-hero .ch-title{opacity:0;transform:translateY(22px);transition:opacity .9s var(--ease-expo) .04s, transform .9s var(--ease-expo) .04s;}
+html.js .chapter-hero.is-on .ch-title{opacity:1;transform:none;}
+html.js .chapter-hero::after{opacity:0;transition:opacity 1.2s var(--ease) .25s;}
 html.js .chapter-hero.is-on::after{opacity:.45;}
-@media (prefers-reduced-motion:reduce){html.js .chapter-hero .ch-title,html.js .chapter-hero::after{transition:none;}}
+@media (prefers-reduced-motion:reduce){html.js .chapter-hero .ch-title{opacity:1;transform:none;}html.js .chapter-hero .ch-title,html.js .chapter-hero::after{transition:none;}}
 
 /* (story grain removed — .cinematic-stage::after already grains the whole stage, and mix-blend:overlay here recomposited every scrubbed frame) */
 /* .story-vignette is now display:none — vignette is on .cinematic-stage::before */

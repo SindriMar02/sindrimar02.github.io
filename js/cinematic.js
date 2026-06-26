@@ -31,6 +31,7 @@ let telAlt, telVel, descentScrim;
 let chapters = [], rail, railFill, railNum, skipBtn, activePrev = -1;
 let mmW, mmR, onMM, onBooted, onSkip, built = false, phaseStory = false, staticIO = null, staticTimers = [];
 let segTargets = [], snapLockT = 0, snapAnim = false, coolUntil = 0, glideRaf = 0, touchY = 0, onSnapInput = null, onSnapKey = null, onTouchStart = null, onTouchMove = null;
+let descentQueued = 0, warmRaf = 0, warmForce = false;   // first descent glide is HELD until the dive frames are cached (dSeq.warm) so the cold-cache scrub never sticks/jumps; the scroll intent is queued + auto-fired on warm
 let mobileWm = null;   // mobile/static hero wordmark — the desktop decode module on a 2D canvas (built in buildStaticDescent)
 let stars = null;      // orbital starfield (desktop WebGL hero only; idle-only — fades out as the dive begins)
 
@@ -247,9 +248,25 @@ function doGestureAdvance(dir){
   else { for(let i = segTargets.length - 1; i >= 0; i--){ if(segTargets[i] < p - 0.012){ target = segTargets[i]; break; } } }
   if(target == null) return;                                  // already at the final stop in that direction
   const descentMove = (dir > 0 && p < SPLIT - 0.01 && target >= SPLIT - 0.01) || (dir < 0 && target < 0.01);
-  const dur = descentMove ? 3.6 : 1.6;                        // SLOW + smooth: the full dive glides over 3.6s (smootherstep settle), each chapter over 1.6s
+  // HOLD the dive until its frames are cached: a cold-cache scrub out-runs the WebP download and the frame-exact draw STICKS, then
+  // jumps to the seam. Queue the scroll intent and auto-fire the glide the instant the dive is warm (the orbital hero is the hold UI).
+  if(descentMove && dir > 0 && !warmForce && dSeq && dSeq.warm === false){ descentQueued = dir; armWarmFire(); return; }
+  const dur = descentMove ? 3.6 : 2.4;                        // SLOW + smooth: the full dive glides over 3.6s (smootherstep settle); each chapter over 2.4s — slower so the footage between chapters reads
   snapAnim = true;
   runGlide(st.start + target * (st.end - st.start), dur, descentMove ? easeSmoother : easeQuart);   // smootherstep = flat-accel launch + floaty settle for the dive; quart = floaty halt for chapters
+}
+// poll dive readiness; once the frames are cached (or a 6s fallback), fire the queued descent glide so it scrubs smoothly from the start
+function armWarmFire(){
+  if(warmRaf) return;                                         // already waiting
+  const t0 = performance.now();
+  const tick = () => {
+    if(dSeq && dSeq.warm === false && performance.now() - t0 < 6000){ warmRaf = requestAnimationFrame(tick); return; }
+    warmRaf = 0;
+    if(performance.now() - t0 >= 6000) warmForce = true;      // don't hang forever on a stalled fetch — let it run (load()'s retry covers stragglers)
+    const d = descentQueued; descentQueued = 0;
+    if(d && !snapAnim) doGestureAdvance(d);
+  };
+  warmRaf = requestAnimationFrame(tick);
 }
 function setupGestureAdvance(){
   buildSegments();
@@ -266,7 +283,7 @@ function setupGestureAdvance(){
   window.addEventListener('touchmove', onTouchMove, { passive: true });
 }
 function teardownSnap(){
-  clearTimeout(snapLockT); cancelAnimationFrame(glideRaf); snapLockT = glideRaf = 0; snapAnim = false; coolUntil = 0; segTargets = []; touchY = 0;
+  clearTimeout(snapLockT); cancelAnimationFrame(glideRaf); cancelAnimationFrame(warmRaf); snapLockT = glideRaf = warmRaf = 0; snapAnim = false; coolUntil = 0; segTargets = []; touchY = 0; descentQueued = 0; warmForce = false;
   if(onSnapInput) window.removeEventListener('wheel', onSnapInput);
   if(onSnapKey) window.removeEventListener('keydown', onSnapKey);
   if(onTouchStart) window.removeEventListener('touchstart', onTouchStart);

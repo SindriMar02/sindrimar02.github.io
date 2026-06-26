@@ -97,13 +97,17 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const b = frames[hi-1]; if(frac > 0 && isReady(b)){ octx.globalAlpha = frac; cover(b); octx.globalAlpha = 1; }
     return true; }
   const prefetchCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-  function prefetchAll(){ let i = 1, inflight = 0; const pump = () => { while(inflight < 3 && i <= count){ const u = srcOf(i++); inflight++;   // 3 in-flight (was 4): leave headroom for the windowed <img> loads + the live scrub
-      fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; pump(); }); } };
+  let fetched = 0, prefetchDone = false;
+  function prefetchAll(){ let i = 1, inflight = 0; const pump = () => { while(inflight < 6 && i <= count){ const u = srcOf(i++); inflight++;   // 6 in-flight — warm the WHOLE dive into the HTTP cache FAST so the first scroll never out-runs the WebP download (the cold-cache "stick then jump" glitch)
+      fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
     pump(); }
-  // gate the whole-sequence prefetch on window load + idle (was firing at module init) so it never competes with the CRITICAL first
-  // frames / first paint on a (re)load — a prefetch storm during boot was a verified "frames don't load on refresh" contributor
-  const schedulePrefetch = () => (window.requestIdleCallback || ((fn) => setTimeout(fn, 2500)))(prefetchAll, { timeout: 6000 });
-  if(document.readyState === 'complete') schedulePrefetch(); else window.addEventListener('load', schedulePrefetch, { once: true });
+  // Start the whole-sequence prefetch the moment the loader releases (artix:booted) or on window load — both are PAST first paint +
+  // the critical opener frames, so the warm-storm never competes with them (a prefetch at module init was a verified "frames don't
+  // load on refresh" cause). cinematic.js gates the first descent glide on `warm` so the dive only scrubs once these are cached.
+  let prefetchStarted = false;
+  const schedulePrefetch = () => { if(prefetchStarted) return; prefetchStarted = true; prefetchAll(); };
+  if(document.readyState === 'complete') schedulePrefetch();
+  else { window.addEventListener('load', schedulePrefetch, { once: true }); document.addEventListener('artix:booted', schedulePrefetch, { once: true }); }
 
   // ── ice ARTIX wordmark (its own canvas; warped/composited by the shader) ──
   // Treatment-B instrument decode (claude-design handoff) draws the wordmark+slogan; this file keeps the placing, the resting
@@ -182,6 +186,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     pause: stop,
     resume: start,
     get count(){ return count; },
+    get warm(){ return prefetchDone; },   // true once the whole dive is fetched into cache — cinematic.js holds the first descent glide until then (no cold-cache stick/jump)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }

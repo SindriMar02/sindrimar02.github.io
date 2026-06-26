@@ -60,7 +60,7 @@ export function createStarfield({ host, density = 1, reduced = false }){
   // ── star generation (normalized positions so they're resolution-independent across resizes) ──
   function build(){
     const area = (host.clientWidth * host.clientHeight) || (1440 * 900);
-    const N = Math.round(Math.max(160, Math.min(420, 150 * Math.sqrt(area / (1440 * 900)) * density)));
+    const N = Math.round(Math.max(140, Math.min(280, 120 * Math.sqrt(area / (1440 * 900)) * density)));   // capped lower (was 160–420) — fewer sprite draws per frame keeps the screen-blend hero composite light
     stars = new Array(N);
     // a soft diagonal "galactic band" — a fraction of the stars are extra-faint dust clustered along this axis (Milky-Way feel)
     const bandAng = -0.34, ca = Math.cos(bandAng), sa = Math.sin(bandAng);   // band axis ≈ -20°, upper diagonal (away from the low-right Earth)
@@ -181,16 +181,19 @@ export function createStarfield({ host, density = 1, reduced = false }){
     ctx.globalAlpha = 1;
   }
 
+  let lastPaint = 0;
   function loop(now){
     if(!t0) t0 = now;
+    // keep running while visible OR still fading in; once fully gone (scrolled into the dive) stop to spend nothing at rest.
+    // Reschedule FIRST so the ~30fps throttle-skip below never kills the loop.
+    raf = (running && (vis > 0.001 || appear < 1)) ? requestAnimationFrame(loop) : 0;
+    if(now - lastPaint < 32) return;                                // ~30fps cap — slow twinkle/drift reads identically at 30fps but ~halves the per-second sprite-draw + screen-blend composite cost
+    lastPaint = now;
     if(appear < 1) appear = Math.min(1, (now - t0) / APPEAR_MS);
     const e = appear < 1 ? (appear * appear * (3 - 2 * appear)) : 1; // smoothstep the fade-in
     const savedAppear = appear; appear = e;
     paint(now);
     appear = savedAppear;
-    // keep running while visible OR still fading in; once fully gone (scrolled into the dive) stop to spend nothing at rest
-    if(running && (vis > 0.001 || appear < 1)) raf = requestAnimationFrame(loop);
-    else { raf = 0; }
   }
 
   let ro = null;

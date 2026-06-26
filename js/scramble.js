@@ -15,7 +15,7 @@ const SPLIT_CYAN   = 'rgb(0,200,236)';                                         /
 const SPLIT_VIOLET = 'rgb(132,152,255)';                                       // chromatic fringe — right offset
 const CHURN_CORE   = 'rgb(126,204,234)';                                       // dim-ice churn core (wordmark churn colour)
 const FLARE_CORE   = 'rgb(166,226,246)';                                       // brighter core as the char flares/locks
-const FLARE_GLOW   = 'rgba(116,198,230,.7)';                                   // ice glow at the flare
+const FLARE_GLOW   = 'rgba(116,198,230,.42)';                                  // ice glow at the flare — kept subtle (≈ the wordmark's glyphFs*0.18 glow) so a 40-char headline's overlapping flares don't wash the footage white
 
 function buildChars(el, target){
   el.textContent = '';
@@ -86,7 +86,7 @@ export function scramble(el, opts = {}){
           const col = flare ? FLARE_CORE : CHURN_CORE;
           if(s._lc !== col){ s.style.color = col; s._lc = col; }
           const sh = flare
-            ? '-' + off + 'em 0 0.01em ' + SPLIT_CYAN + ',' + off + 'em 0 0.01em ' + SPLIT_VIOLET + ',0 0 0.5em ' + FLARE_GLOW   // + ice glow as it locks
+            ? '-' + off + 'em 0 0.01em ' + SPLIT_CYAN + ',' + off + 'em 0 0.01em ' + SPLIT_VIOLET + ',0 0 0.18em ' + FLARE_GLOW   // + a SMALL ice glow as it locks (was 0.5em — washed the frame on the big hero headline)
             : '-' + off + 'em 0 0.02em ' + SPLIT_CYAN + ',' + off + 'em 0 0.02em ' + SPLIT_VIOLET;
           if(s._ls !== sh){ s.style.textShadow = sh; s._ls = sh; }
         }
