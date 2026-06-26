@@ -38,8 +38,12 @@ function buildChars(el, target){
     else { if(!word){ word = document.createElement('span'); word.className = 'scw'; word.style.whiteSpace = 'nowrap'; el.appendChild(word); } word.appendChild(s); }
     chars.push(s);
   }
-  // lock each slot to its final glyph width so subsequent glyph swaps can't shift the layout
-  chars.forEach(s => { const w = s.getBoundingClientRect().width; if(w > 0){ s.style.display = 'inline-block'; s.style.width = w.toFixed(2) + 'px'; s.style.textAlign = 'center'; } });
+  // lock each slot to its final glyph width so subsequent glyph swaps can't shift the layout.
+  // READ all widths first (one layout flush) THEN write — interleaving getBoundingClientRect with the display/width/
+  // textAlign writes forced a reflow PER character, so a long headline split synchronously ~40× on first decode (a
+  // 50–110ms hitch each time a chapter first scrolled in / a language swap re-split). Two phases ⇒ a single reflow.
+  const ws = chars.map(s => s.getBoundingClientRect().width);
+  chars.forEach((s, i) => { const w = ws[i]; if(w > 0){ s.style.display = 'inline-block'; s.style.width = w.toFixed(2) + 'px'; s.style.textAlign = 'center'; } });
   el._chars = chars;
   el.dataset.split = '1';
 }
