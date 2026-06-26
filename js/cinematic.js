@@ -308,7 +308,7 @@ function buildAnimated(){
   gsap.registerPlugin(ScrollTrigger);
   dCanvas = dStage.querySelector('.descent-canvas');
   dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 367,
-    settings: { ampMul: 0.59, ctr: 0.175, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 } });
+    settings: { ampMul: 0.59, ctr: 0.26, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 } });   // ctr re-aligned 0.175→0.26: the new clip holds radar longer + morphs in its back third, so the membrane tear now lands ON the radar→photoreal morph (was firing during plain radar). Strength/wobble/width kept exact.
   if(dSeq){ dStage.classList.add('is-lens');             // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
     try { stars = createStarfield({ host: dStage, reduced: mmR.matches }); if(stars) stars.start(); } catch(e){ stars = null; } }   // orbital sky at idle (only over the live WebGL hero)
   else dSeq = createSequence({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 367 });   // no-WebGL fallback: plain scrub, no lens
