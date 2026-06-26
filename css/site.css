@@ -11,44 +11,116 @@ a{color:inherit;}
      font-family:var(--font-mono);font-size:var(--fs-mono-label);transition:transform var(--dur-fast) var(--ease);}
 .skip-link:focus{transform:none;}
 
-/* ---------- MASTHEAD — floating frosted pill, compacts on scroll ---------- */
+/* ============================================================================
+   MASTHEAD — Grouped Instrument Bar + Utility Cluster  (FULL REPLACEMENT)
+   Replaces the .masthead…@media(max-width:860px) block in css/site.css (~lines 14-101)
+   AND the trailing masthead overrides at ~220-227 (folded in here). Flat, full-width,
+   transparent over the cinematic; the SAME ::before abyss fill + ::after single cyan
+   hairline assemble on .is-stuck. Only new visual vocabulary: a 1px caret + a flat
+   square dropdown panel that re-uses the bar's fill + cyan-hairline language. Ember
+   stays rationed to the CTA; the active IS/EN segment uses ICE (cyan), not ember.
+   ============================================================================ */
 .masthead{position:fixed;inset:0 0 auto 0;z-index:100;display:flex;justify-content:center;
      padding:0;pointer-events:none;view-transition-name:artix-masthead;}
-/* MINIMAL INSTRUMENT BAR — full-width, FLAT (no glass/blur). The chrome floats transparent over the cinematic; a flat fill + a
-   single cyan hairline ASSEMBLE on scroll into content. (Replaced the frosted-glass pill.) */
 .mast-pill{pointer-events:auto;position:relative;display:flex;align-items:center;gap:var(--space-6);
      width:100%;max-width:none;border:0;border-radius:0;background:transparent;
      padding:calc(clamp(.7rem,1.5vw,1rem) + env(safe-area-inset-top)) max(var(--pad),env(safe-area-inset-right)) clamp(.7rem,1.5vw,1rem) max(var(--pad),env(safe-area-inset-left));
      transition:padding .42s var(--ease-expo);}
-/* flat fill — fades in as the bar assembles over content (NOT a backdrop blur) */
+/* flat abyss fill — fades in as the bar assembles (NOT a backdrop blur) */
 .mast-pill::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
      background:linear-gradient(180deg,color-mix(in srgb,var(--abyss) 94%,transparent) 0%,color-mix(in srgb,var(--abyss) 80%,transparent) 100%);
      opacity:0;transition:opacity .5s var(--ease);}
-/* the ONE cyan accent — a hairline that draws across the bottom edge when the bar assembles */
+/* the ONE cyan accent — a hairline drawn across the bottom edge when the bar assembles */
 .mast-pill::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;z-index:-1;pointer-events:none;
      background:linear-gradient(90deg,color-mix(in srgb,var(--accent-signal) 60%,transparent) 0%,color-mix(in srgb,var(--frost) 16%,transparent) 42%,transparent 100%);
      transform:scaleX(0);transform-origin:left center;transition:transform .6s var(--ease-expo);}
 .masthead.is-stuck .mast-pill::before{opacity:1;}
 .masthead.is-stuck .mast-pill::after{transform:scaleX(1);}
+
+/* BRAND (unchanged) */
 .mast-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--text);}
 .mast-mark{display:block;height:1.7rem;width:auto;}
-.mast-word{font-family:var(--font-wordmark);font-weight:400;font-size:1.1rem;letter-spacing:.16em;line-height:1;padding-right:.16em;text-transform:none;}   /* Spec v1 §01 — Michroma wordmark */
-.mast-nav{display:flex;gap:var(--space-6);list-style:none;margin:0 auto;padding:0;}
-.mast-nav a{font-family:var(--font-mono);font-size:var(--fs-mono-nav);letter-spacing:var(--track-mono-ui);
-     color:var(--text-dim);text-decoration:none;transition:color var(--dur-fast) var(--ease);}
-.mast-nav a:hover,.mast-nav a:focus-visible{color:var(--text);}
+.mast-word{font-family:var(--font-wordmark);font-weight:400;font-size:1.1rem;letter-spacing:.16em;line-height:1;padding-right:.16em;text-transform:none;}
+
+/* PRIMARY NAV — group cluster stays optically centred (margin:0 auto); utility cluster floats right */
+.mast-nav{display:flex;align-items:center;gap:var(--space-6);list-style:none;margin:0 auto;padding:0;}
+/* flat top-level links AND group triggers share ONE type spec — the bar's typography is unchanged */
+.mast-nav>li>a,.mast-trigger{font-family:var(--font-mono);font-size:var(--fs-mono-nav);letter-spacing:var(--track-mono-ui);
+     color:var(--text-dim);text-decoration:none;line-height:1;background:none;border:0;padding:0;cursor:pointer;
+     transition:color var(--dur-fast) var(--ease);}
+.mast-nav>li>a:hover,.mast-nav>li>a:focus-visible,
+.mast-trigger:hover,.mast-trigger:focus-visible{color:var(--text);}
+.mast-nav a[aria-current="page"]{color:var(--accent-signal);}
+
+/* GROUP + TRIGGER + CARET */
+.mast-group{position:relative;display:flex;align-items:center;}
+.mast-trigger{display:inline-flex;align-items:center;gap:.4em;}
+.mast-caret{width:.5em;height:.5em;border-right:1px solid currentColor;border-bottom:1px solid currentColor;
+     transform:translateY(-.12em) rotate(45deg);transition:transform var(--dur-fast) var(--ease-expo);}
+.mast-trigger[aria-expanded="true"]{color:var(--text);}
+.mast-trigger[aria-expanded="true"] .mast-caret{transform:translateY(.08em) rotate(-135deg);}
+/* active-ancestor: the group whose child is the current page keeps the cyan "you are here" affordance even collapsed */
+.mast-group[data-current] .mast-trigger{color:var(--accent-signal);}
+
+/* DROPDOWN PANEL — flat, square, re-uses the bar's abyss fill + the SAME cyan hairline as its top edge.
+   NOT a glass card. ≥92% abyss so it reads cleanly over bright/moving cinematic frames. */
+.mast-menu{position:absolute;top:calc(100% + .55rem);left:0;min-width:13rem;margin:0;padding:.4rem 0;list-style:none;
+     background:linear-gradient(180deg,color-mix(in srgb,var(--abyss) 96%,transparent),color-mix(in srgb,var(--abyss) 92%,transparent));
+     border:1px solid var(--hairline);border-radius:0;box-shadow:var(--shadow-float);}
+.mast-menu::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;
+     background:linear-gradient(90deg,color-mix(in srgb,var(--accent-signal) 60%,transparent) 0%,transparent 60%);}
+.mast-menu[hidden]{display:none;}
+.mast-menu a{display:block;padding:.55rem var(--space-5);font-family:var(--font-mono);font-size:var(--fs-mono-nav);
+     letter-spacing:var(--track-mono-ui);color:var(--text-dim);white-space:nowrap;
+     transition:color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease);}
+.mast-menu a:hover,.mast-menu a:focus-visible{color:var(--text);background:color-mix(in srgb,var(--accent-signal) 8%,transparent);outline:none;}
+.mast-menu a[aria-current="page"]{color:var(--accent-signal);}
+
+/* UTILITY CLUSTER — permanent right home for language + CTA */
+.mast-end{display:flex;align-items:center;gap:var(--space-4);flex:none;}
+
+/* IS/EN SEGMENTED TOGGLE — mono micro caps; active segment = the rationed cyan signal.
+   Works zero-JS via i18n.js data-lang-btn auto-wiring (sets aria-pressed + .is-active). */
+.mast-lang{display:inline-flex;align-items:center;gap:.5rem;}
+.mast-lang button{font-family:var(--font-mono);font-size:var(--fs-mono-nav);letter-spacing:.14em;
+     text-transform:uppercase;color:var(--text-faint);background:none;border:0;padding:.15rem .1rem;line-height:1;
+     position:relative;transition:color var(--dur-fast) var(--ease);}
+.mast-lang button:hover{color:var(--text-dim);}
+.mast-lang button[aria-pressed="true"],.mast-lang button.is-active{color:var(--accent-signal);}
+/* cyan underline under the active locale — echoes the bar's single accent (state not by colour alone) */
+.mast-lang button[aria-pressed="true"]::after,.mast-lang button.is-active::after{
+     content:"";position:absolute;left:0;right:0;bottom:-.28em;height:1px;background:var(--accent-signal);}
+.mast-lang button:focus-visible{outline:var(--ring-focus);outline-offset:var(--ring-focus-offset);border-radius:var(--radius-xs);}
+.mast-lang-sep{width:1px;height:.85em;background:color-mix(in srgb,var(--frost) 22%,transparent);}
+
+/* DIVIDER — the existing inert token, made visible ONLY inside the cluster as a hairline between toggle and CTA */
+.mast-div{flex:none;width:1px;height:1.4em;align-self:center;background:color-mix(in srgb,var(--frost) 18%,transparent);opacity:.5;}
+
+/* CTA — rationed ember pill (unchanged) */
 .mast-cta{font-family:var(--font-mono);font-size:var(--fs-mono-cta);letter-spacing:var(--track-cta);
      text-transform:uppercase;background:var(--accent-live);color:var(--on-accent);text-decoration:none;
      padding:.62rem 1.05rem;border-radius:var(--radius-pill);white-space:nowrap;
      transition:background var(--dur-fast) var(--ease);}
 .mast-cta:hover{background:var(--accent-live-hot);}
+
+/* legible while floating over bright cinematic frames */
+.mast-word,.mast-nav>li>a,.mast-trigger{text-shadow:var(--text-shadow-media);}
+
 .mast-burger{display:none;}
 .mast-drawer{display:none;}
+
+/* GHOST over the cinematic — suppress the bar skin (after .is-stuck so it wins) */
+.masthead.is-collapsed .mast-pill::before{opacity:0;}
+.masthead.is-collapsed .mast-pill::after{transform:scaleX(0);}
+
+/* ----------------------------------------------------------------------------
+   ≤860px — collapse to burger→drawer. NO dropdown machinery ships: groups become
+   flat labelled sub-sections; the IS/EN toggle is pinned at the drawer foot.
+---------------------------------------------------------------------------- */
 @media (max-width:860px){
-  .mast-nav,.mast-pill>.mast-cta{display:none;}
-  /* backdrop-filter on .mast-pill creates a stacking context — give it z-index so it sits above the drawer (z-index:99) */
+  .mast-nav,.mast-end{display:none;}
   .mast-pill{z-index:101;}
-  /* BURGER — clean 3 bars → X, 44px hit area, ICE press + focus feedback (no border/glow ring) */
+
   .mast-burger{display:flex;pointer-events:auto;margin-left:auto;margin-right:-.2rem;width:2.75rem;height:2.75rem;align-items:center;
      justify-content:center;background:none;border:none;border-radius:10px;cursor:pointer;
      transition:transform var(--dur-fast) var(--ease),background var(--dur-mid) var(--ease);}
@@ -65,14 +137,20 @@ a{color:inherit;}
   .mast-burger[aria-expanded="true"] span{background:transparent;}
   .mast-burger[aria-expanded="true"] span::before{top:0;transform:rotate(45deg);}
   .mast-burger[aria-expanded="true"] span::after{top:0;transform:rotate(-45deg);}
-  /* DRAWER — animated frosted panel: always display:block so BOTH directions transition; [hidden] hides via opacity/visibility.
-     Safe-area aware (notch/home-indicator); scrolls on short viewports. */
-  .mast-drawer{display:block;pointer-events:auto;position:fixed;inset:0;z-index:99;
+
+  .mast-drawer{display:flex;flex-direction:column;pointer-events:auto;position:fixed;inset:0;z-index:99;
      background:color-mix(in srgb,var(--abyss) 97%,transparent);
      padding:calc(5.5rem + env(safe-area-inset-top)) max(var(--pad),env(safe-area-inset-right)) max(var(--pad),calc(env(safe-area-inset-bottom) + 1rem)) max(var(--pad),env(safe-area-inset-left));
      overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
      opacity:1;visibility:visible;transition:opacity .34s var(--ease);}
-  .mast-drawer[hidden]{display:block;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .26s var(--ease),visibility 0s .26s;}
+  .mast-drawer[hidden]{display:flex;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .26s var(--ease),visibility 0s .26s;}
+
+  .mast-drawer-nav{display:flex;flex-direction:column;}
+  /* group eyebrow heading — non-focusable, mono label register */
+  .mast-sect{margin:var(--space-6) 0 var(--space-3);font-family:var(--font-mono);font-size:var(--fs-mono-label);
+     letter-spacing:var(--track-label);text-transform:uppercase;color:var(--text-faint);}
+  .mast-sect:first-child{margin-top:0;}
+  .mast-sect[hidden]{display:none;}
   .mast-drawer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-4);}
   .mast-drawer a{display:flex;align-items:center;min-height:48px;font-family:var(--font-display);font-size:var(--fs-h4);color:var(--text);
      text-decoration:none;letter-spacing:var(--track-display-2);transition:color .2s var(--ease),transform .2s var(--ease-expo);}
@@ -81,25 +159,34 @@ a{color:inherit;}
   .mast-drawer a:focus-visible{outline:2px solid var(--accent-signal);outline-offset:4px;border-radius:6px;}
   .mast-drawer a[aria-current="page"]{color:var(--accent-signal);position:relative;padding-left:.95rem;}
   .mast-drawer a[aria-current="page"]::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:1.05em;background:var(--accent-signal);border-radius:2px;}
-  .mast-drawer .mast-cta{display:inline-flex;align-items:center;min-height:48px;font-family:var(--font-mono);font-size:var(--fs-mono-cta);margin-top:var(--space-5);padding:.8rem 1.2rem;}
-  /* staggered cascade — declared only in the OPEN state so it replays every open */
-  .mast-drawer:not([hidden]) li{animation:drawer-item-in .5s var(--ease-expo) both;}
-  .mast-drawer:not([hidden]) li:nth-child(1){animation-delay:.05s;}
-  .mast-drawer:not([hidden]) li:nth-child(2){animation-delay:.10s;}
-  .mast-drawer:not([hidden]) li:nth-child(3){animation-delay:.15s;}
-  .mast-drawer:not([hidden]) li:nth-child(4){animation-delay:.20s;}
-  .mast-drawer:not([hidden]) li:nth-child(5){animation-delay:.25s;}
-  .mast-drawer:not([hidden]) li:nth-child(6){animation-delay:.30s;}
-  .mast-drawer:not([hidden]) li:nth-child(7){animation-delay:.35s;}
+
+  .mast-drawer>.mast-cta{display:inline-flex;align-self:flex-start;align-items:center;min-height:48px;
+     font-family:var(--font-mono);font-size:var(--fs-mono-cta);margin-top:var(--space-7);padding:.8rem 1.2rem;}
+
+  /* IS/EN toggle pinned at the drawer foot — large ≥48px touch targets */
+  .mast-lang-drawer{margin-top:var(--space-8);padding-top:var(--space-5);gap:var(--space-4);
+     border-top:1px solid var(--hairline);}
+  .mast-lang-drawer button{min-height:48px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;
+     font-size:var(--fs-mono-cta);letter-spacing:.16em;padding:.4rem .6rem;}
+  .mast-lang-drawer .mast-lang-sep{height:1.4em;}
+
+  /* staggered cascade — count-agnostic via --i; replays every open. Foot controls follow the links. */
+  .mast-drawer:not([hidden]) li{animation:drawer-item-in .5s var(--ease-expo) both;animation-delay:calc(.05s + var(--i,0) * .05s);}
+  .mast-drawer:not([hidden])>.mast-cta{animation:drawer-item-in .5s var(--ease-expo) both;animation-delay:.4s;}
+  .mast-drawer:not([hidden])>.mast-lang-drawer{animation:drawer-item-in .5s var(--ease-expo) both;animation-delay:.46s;}
 }
 @keyframes drawer-item-in{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
 @media (max-width:860px) and (prefers-reduced-motion:reduce){
   .mast-burger,.mast-burger span,.mast-burger span::before,.mast-burger span::after{transition:none;}
   .mast-drawer{transition:opacity .12s linear;}
   .mast-drawer[hidden]{transition:opacity .12s linear,visibility 0s .12s;}
-  .mast-drawer:not([hidden]) li{animation:none;}
+  .mast-drawer:not([hidden]) li,
+  .mast-drawer:not([hidden])>.mast-cta,
+  .mast-drawer:not([hidden])>.mast-lang-drawer{animation:none;}
   .mast-drawer a{transition:color .12s linear;}
 }
+/* reduced motion (all widths): freeze caret-rotation transition */
+@media (prefers-reduced-motion:reduce){.mast-caret{transition:none;}}
 
 /* ---------- PAGE FLOW (lifts over the reveal footer) ---------- */
 main{position:relative;z-index:1;background:var(--bg);display:block;}
@@ -214,17 +301,6 @@ html:not(.js) .boot{display:none!important;}
 
 /* ============ STAGE-4 REWORK: glass-collapse header · still landing · line-mask text · column+reveal footer ============ */
 
-/* HEADER — minimal instrument bar (replaced the rejected glass pill). Over the homepage cinematic the bar skin stays OFF so the
-   chrome floats transparent and never competes with the dive-lens hero; cinematic.js holds .is-collapsed for the whole cinematic
-   and lifts it at the very end, so the flat fill + cyan hairline ASSEMBLE just as the content begins. */
-.mast-word,.mast-nav a{text-shadow:var(--text-shadow-media);}   /* legible while floating over bright cinematic frames */
-.mast-nav{transition:opacity .3s var(--ease), transform .42s var(--ease-expo);}
-.mast-cta{transition:background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);}
-.mast-div{flex:none;width:1px;height:1.4em;align-self:center;background:color-mix(in srgb,var(--frost) 18%,transparent);opacity:0;}   /* divider not used by the flat bar — kept inert for markup compatibility */
-/* GHOST over the cinematic — suppress the bar skin (MUST come after .is-stuck to win). The nav stays visible (floating) so the
-   site is navigable without scrolling the whole intro; the CTA stays FILLED ember at all times (owner request — never outlined). */
-.masthead.is-collapsed .mast-pill::before{opacity:0;}
-.masthead.is-collapsed .mast-pill::after{transform:scaleX(0);}
 
 /* STILL LANDING + pinned story (8 beats incl hero=beat 0) — scroll height now lives on .cinematic */
 .ch-title{position:relative;font-family:var(--font-display);font-weight:700;letter-spacing:-.012em;line-height:1;margin:0;color:var(--text);font-size:clamp(2.1rem,5.1vw,4.4rem);}   /* dialled down from --fs-h1 (max 6.2rem) — two-line pinned titles were oversized */
@@ -606,19 +682,6 @@ html.js .chapter-hero.is-on::after{opacity:.45;}
 .contact-note{font-family:var(--font-mono);font-size:var(--fs-mono-nav);line-height:var(--leading-body);color:var(--text-faint);max-inline-size:42ch;margin:0;}
 @media (max-width:860px){.contact-grid{grid-template-columns:1fr;}}
 
-/* active / current-page nav (you-are-here) + comfortable hit areas */
-.mast-nav a{display:inline-flex;align-items:center;min-height:40px;}
-.mast-nav a[aria-current="page"]{color:var(--text);}
-.mast-nav li{position:relative;}
-/* sleek animated underline — an ICE line that wipes in from the left under the hovered link, retracts to the right on leave,
-   and stays lit under the current page. transform-only (GPU) so it stays crisp; subtle ice glow matches the instrument signature. */
-.mast-nav a::after{content:"";position:absolute;left:0;right:0;bottom:9px;height:1.5px;border-radius:2px;   /* bottom:9px sits the line ~3px under the text — the link is a 40px-tall centred hit area, so a box-bottom anchor floated ~13px too low */
-  background:var(--accent-signal);box-shadow:0 0 8px color-mix(in srgb,var(--accent-signal) 55%,transparent);
-  transform:scaleX(0);transform-origin:right center;transition:transform .36s var(--ease-expo);}
-.mast-nav a:hover::after,.mast-nav a:focus-visible::after{transform:scaleX(1);transform-origin:left center;}
-.mast-nav a[aria-current="page"]::after{transform:scaleX(1);transform-origin:left center;}
-@media (prefers-reduced-motion:reduce){.mast-nav a::after{transition:none;}}
-.mast-drawer a[aria-current="page"]{color:var(--accent-signal);}
 .footer-meta a{display:inline-block;padding:.15rem 0;}
 
 /* inner-page editorial "role" band (About) — a distinct second module */

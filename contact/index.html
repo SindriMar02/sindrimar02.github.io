@@ -7,13 +7,13 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>document.documentElement.classList.add('js');try{if(window.top!==window.self){window.top.location=window.self.location;}}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ARTIX — Contact</title>
-<meta name="description" content="Reach ARTIX directly — a short request-for-information path for end-users and a separate path for manufacturers and partners.">
+<title data-i18n="contact.head.title">ARTIX — Contact</title>
+<meta name="description" data-i18n-attr="content:contact.head.description" content="Reach ARTIX directly — a short request-for-information path for end-users and a separate path for manufacturers and partners.">
 <link rel="canonical" href="https://artix.is/contact/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ARTIX">
-<meta property="og:title" content="ARTIX — Contact">
-<meta property="og:description" content="Reach ARTIX directly — a short request-for-information path for end-users and a separate path for manufacturers and partners.">
+<meta property="og:title" data-i18n-attr="content:contact.head.og_title" content="ARTIX — Contact">
+<meta property="og:description" data-i18n-attr="content:contact.head.og_description" content="Reach ARTIX directly — a short request-for-information path for end-users and a separate path for manufacturers and partners.">
 <meta property="og:url" content="https://artix.is/contact/">
 <meta property="og:image" content="https://artix.is/assets/og-artix.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -30,34 +30,87 @@
 </head>
 <body class="info">
 <!-- partial:masthead:start -->
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#main" data-i18n="nav.skip_to_content">Skip to content</a>
 <header class="masthead" data-masthead>
-  <nav class="mast-pill" aria-label="Primary">
-    <a class="mast-brand" href="/" aria-label="ARTIX — home">
+  <nav class="mast-pill" aria-label="Primary" data-i18n-attr="aria-label:nav.primary.aria_label">
+    <a class="mast-brand" href="/" aria-label="ARTIX — home" data-i18n-attr="aria-label:nav.brand.aria_label">
       <img class="mast-mark" src="/assets/helm-mark.svg" alt="" width="22" height="28">
       <span class="mast-word">ARTIX</span>
     </a>
+
+    <!-- PRIMARY NAV — one grouped disclosure menu + flat links. Triggers are ordinary disclosure
+         buttons (Tab flows naturally, not a trapped menubar). The label sits in its own <span> so the
+         i18n innerHTML swap never wipes the caret. -->
     <ul class="mast-nav">
-      <li><a href="/capabilities/">Capabilities</a></li>
-      <li><a href="/manufacturers/">Manufacturers</a></li>
-      <li><a href="/partners/">Partners</a></li>
-      <li><a href="/industries/">Industries</a></li>
-      <li><a href="/government-solutions/">Government</a></li>
-      <li><a href="/about/">About</a></li>
+      <!-- GROUP 1 — Solutions / Lausnir -->
+      <li class="mast-group">
+        <button class="mast-trigger" id="mg-sol" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="mp-sol"><span data-i18n="nav.group.solutions">Solutions</span><span class="mast-caret" aria-hidden="true"></span></button>
+        <ul class="mast-menu" id="mp-sol" role="menu" aria-labelledby="mg-sol" hidden>
+          <li role="none"><a role="menuitem" href="/capabilities/" data-i18n="nav.link.capabilities">Capabilities</a></li>
+          <li role="none"><a role="menuitem" href="/manufacturers/" data-i18n="nav.link.manufacturers">Manufacturers</a></li>
+          <li role="none"><a role="menuitem" href="/industries/" data-i18n="nav.link.industries">Industries</a></li>
+          <li role="none"><a role="menuitem" href="/government-solutions/" data-i18n="nav.link.government">Government</a></li>
+        </ul>
+      </li>
+
+      <!-- ITEM 2 — Partners ships FLAT (avoids a single-item menu). GROWTH SLOT: when a 2nd network
+           page exists, replace this <li> with the commented .mast-group below, move Partners inside, and
+           un-hide the drawer's "Network" .mast-sect. The dropdown JS is delegated — no JS change needed. -->
+      <li><a href="/partners/" data-i18n="nav.link.partners">Partners</a></li>
+      <!--
+      <li class="mast-group">
+        <button class="mast-trigger" id="mg-net" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="mp-net"><span data-i18n="nav.group.network">Network</span><span class="mast-caret" aria-hidden="true"></span></button>
+        <ul class="mast-menu" id="mp-net" role="menu" aria-labelledby="mg-net" hidden>
+          <li role="none"><a role="menuitem" href="/partners/" data-i18n="nav.link.partners">Partners</a></li>
+        </ul>
+      </li>
+      -->
+
+      <!-- ITEM 3 — About: a single destination, stays flat. -->
+      <li><a href="/about/" data-i18n="nav.link.about">About</a></li>
     </ul>
-    <a class="mast-cta" href="/contact/">Request a briefing</a>
-    <button class="mast-burger" type="button" aria-expanded="false" aria-controls="mast-drawer" aria-label="Open menu"><span aria-hidden="true"></span></button>
+
+    <!-- UTILITY CLUSTER — permanent right home for language + CTA. -->
+    <div class="mast-end">
+      <div class="mast-lang" role="group" aria-label="Language / Tungumál" data-i18n-attr="aria-label:nav.lang">
+        <button type="button" data-lang-btn="is" aria-pressed="false" lang="is">IS</button>
+        <span class="mast-lang-sep" aria-hidden="true"></span>
+        <button type="button" data-lang-btn="en" aria-pressed="true" lang="en">EN</button>
+      </div>
+      <span class="mast-div" aria-hidden="true"></span>
+      <a class="mast-cta" href="/contact/" data-i18n="nav.cta.request_briefing">Request a briefing</a>
+    </div>
+
+    <button class="mast-burger" type="button" aria-expanded="false" aria-controls="mast-drawer" aria-label="Open menu" data-i18n-attr="aria-label:nav.burger.open.aria_label"><span aria-hidden="true"></span></button>
   </nav>
-  <div class="mast-drawer" id="mast-drawer" role="dialog" aria-modal="true" aria-label="Menu" hidden>
-    <ul>
-      <li><a href="/capabilities/">Capabilities</a></li>
-      <li><a href="/manufacturers/">Manufacturers</a></li>
-      <li><a href="/partners/">Partners</a></li>
-      <li><a href="/industries/">Industries</a></li>
-      <li><a href="/government-solutions/">Government solutions</a></li>
-      <li><a href="/about/">About</a></li>
-      <li><a class="mast-cta" href="/contact/">Request a briefing</a></li>
-    </ul>
+
+  <!-- MOBILE DRAWER (≤860px) — groups as labelled sub-sections (non-focusable eyebrow headings), toggle
+       pinned at foot. No dropdown machinery on mobile: every link is flat and directly tappable. nav.js
+       focus-trap queries a[href],button so the toggle buttons are auto-included; the stagger is
+       count-agnostic (per-<li> --i custom property). -->
+  <div class="mast-drawer" id="mast-drawer" role="dialog" aria-modal="true" aria-label="Menu" data-i18n-attr="aria-label:nav.drawer.aria_label" hidden>
+    <nav class="mast-drawer-nav" aria-label="Mobile">
+      <p class="mast-sect" id="dsec-sol" data-i18n="nav.group.solutions">Solutions</p>
+      <ul aria-labelledby="dsec-sol">
+        <li style="--i:0"><a href="/capabilities/" data-i18n="nav.link.capabilities">Capabilities</a></li>
+        <li style="--i:1"><a href="/manufacturers/" data-i18n="nav.link.manufacturers">Manufacturers</a></li>
+        <li style="--i:2"><a href="/industries/" data-i18n="nav.link.industries">Industries</a></li>
+        <li style="--i:3"><a href="/government-solutions/" data-i18n="nav.drawer.link.government_solutions">Government solutions</a></li>
+      </ul>
+      <p class="mast-sect" id="dsec-net" data-i18n="nav.group.network" hidden>Network</p>
+      <ul aria-labelledby="dsec-net">
+        <li style="--i:4"><a href="/partners/" data-i18n="nav.link.partners">Partners</a></li>
+        <li style="--i:5"><a href="/about/" data-i18n="nav.link.about">About</a></li>
+      </ul>
+    </nav>
+
+    <a class="mast-cta" href="/contact/" data-i18n="nav.cta.request_briefing">Request a briefing</a>
+
+    <div class="mast-lang mast-lang-drawer" role="group" aria-label="Language / Tungumál" data-i18n-attr="aria-label:nav.lang">
+      <button type="button" data-lang-btn="is" aria-pressed="false" lang="is">IS</button>
+      <span class="mast-lang-sep" aria-hidden="true"></span>
+      <button type="button" data-lang-btn="en" aria-pressed="true" lang="en">EN</button>
+    </div>
   </div>
 </header>
 <!-- partial:masthead:end -->
@@ -66,86 +119,91 @@
     <div class="page-hero-media" aria-hidden="true"><img src="/assets/home/hero-contact.webp" alt="" class="u-graded" fetchpriority="high" decoding="async"></div>
     <div class="page-hero-scrim" aria-hidden="true"></div>
     <div class="page-hero-inner">
-      <p class="eyebrow" data-reveal data-reveal-index="0">Contact</p>
-      <h1 data-reveal data-reveal-index="1">Talk to us.</h1>
-      <p class="lede" data-reveal data-reveal-index="2">A direct line — tell us what you need to source, specify or sustain, and we'll route it to the right people.</p>
+      <p class="eyebrow" data-i18n="contact.hero.eyebrow" data-reveal data-reveal-index="0">Contact</p>
+      <h1 data-i18n="contact.hero.h1" data-reveal data-reveal-index="1">Talk to us.</h1>
+      <p class="lede" data-i18n="contact.hero.lede" data-reveal data-reveal-index="2">A direct line — tell us what you need to source, specify or sustain, and we'll route it to the right people.</p>
     </div>
   </section>
   <section class="home-section" aria-labelledby="ct-h">
     <div class="contact-grid">
       <div class="contact-aside">
-        <p class="eyebrow" data-reveal data-reveal-index="0">Reach us</p>
-        <h2 id="ct-h" class="home-h" data-reveal data-reveal-index="1">Request a briefing.</h2>
+        <p class="eyebrow" data-i18n="contact.aside.eyebrow" data-reveal data-reveal-index="0">Reach us</p>
+        <h2 id="ct-h" class="home-h" data-i18n="contact.aside.h2" data-reveal data-reveal-index="1">Request a briefing.</h2>
         <dl class="contact-meta" data-reveal data-reveal-index="2">
-          <div><dt class="cm-k">Direct</dt><dd><a href="mailto:artix@artix.is">artix@artix.is</a></dd></div>
-          <div><dt class="cm-k">Based</dt><dd>Smiðjuvellir 17, 300 Akranes · Faxaflói</dd></div>
-          <div><dt class="cm-k">Identity</dt><dd>NCAGE STBZ8 · NATO Codification System</dd></div>
+          <div><dt class="cm-k" data-i18n="contact.aside.meta.direct.key">Direct</dt><dd><a href="mailto:artix@artix.is">artix@artix.is</a></dd></div>
+          <div><dt class="cm-k" data-i18n="contact.aside.meta.based.key">Based</dt><dd data-i18n="contact.aside.meta.based.value">Smiðjuvellir 17, 300 Akranes · Faxaflói</dd></div>
+          <div><dt class="cm-k" data-i18n="contact.aside.meta.identity.key">Identity</dt><dd data-i18n="contact.aside.meta.identity.value">NCAGE STBZ8 · NATO Codification System</dd></div>
         </dl>
-        <p class="contact-note" data-reveal data-reveal-index="3">Partner and manufacturer enquiries welcome, reviewed by scope and end-use.</p>
+        <p class="contact-note" data-i18n="contact.aside.note" data-reveal data-reveal-index="3">Partner and manufacturer enquiries welcome, reviewed by scope and end-use.</p>
       </div>
-      <form class="intake-form" data-reveal data-reveal-index="0" action="mailto:artix@artix.is" method="post" enctype="text/plain" aria-label="Request a briefing">
-        <div class="field" data-ch="01"><label for="f-name">Name</label><input id="f-name" name="name" type="text" autocomplete="name"></div>
-        <div class="field" data-ch="02"><label for="f-org">Organisation</label><input id="f-org" name="organisation" type="text" autocomplete="organization"></div>
-        <div class="field field-full" data-ch="03"><label for="f-email">Email <span aria-hidden="true">*</span></label><input id="f-email" name="email" type="email" autocomplete="email" required></div>
-        <div class="field field-full" data-ch="04"><label for="f-req">What do you need to source or support?</label><textarea id="f-req" name="requirement" rows="4"></textarea></div>
-        <button class="btn btn-primary btn-submit" type="submit">Send enquiry <span class="btn-arrow" aria-hidden="true">&rarr;</span></button>
-        <p class="form-note">Opens your mail app. Prefer to write directly? <a href="mailto:artix@artix.is">artix@artix.is</a></p>
+      <form class="intake-form" data-i18n-attr="aria-label:contact.form.aria_label" data-reveal data-reveal-index="0" action="mailto:artix@artix.is" method="post" enctype="text/plain" aria-label="Request a briefing">
+        <div class="field" data-ch="01"><label for="f-name" data-i18n="contact.form.label.name">Name</label><input id="f-name" name="name" type="text" autocomplete="name"></div>
+        <div class="field" data-ch="02"><label for="f-org" data-i18n="contact.form.label.organisation">Organisation</label><input id="f-org" name="organisation" type="text" autocomplete="organization"></div>
+        <div class="field field-full" data-ch="03"><label for="f-email" data-i18n="contact.form.label.email">Email <span aria-hidden="true">*</span></label><input id="f-email" name="email" type="email" autocomplete="email" required></div>
+        <div class="field field-full" data-ch="04"><label for="f-req" data-i18n="contact.form.label.requirement">What do you need to source or support?</label><textarea id="f-req" name="requirement" rows="4"></textarea></div>
+        <button class="btn btn-primary btn-submit" type="submit" data-i18n="contact.form.submit">Send enquiry <span class="btn-arrow" aria-hidden="true">&rarr;</span></button>
+        <p class="form-note" data-i18n="contact.form.note">Opens your mail app. Prefer to write directly? <a href="mailto:artix@artix.is">artix@artix.is</a></p>
       </form>
     </div>
   </section>
 </main>
 <!-- partial:footer:start -->
-<footer class="site-footer" data-footer>
+<footer class="site-footer" id="site-footer" data-footer>
   <div class="footer-col">
     <div class="footer-top">
-      <nav class="footer-nav" aria-label="Site">
-        <p class="fn-head">Site</p>
-        <a href="/capabilities/">Capabilities</a>
-        <a href="/manufacturers/">Manufacturers</a>
-        <a href="/partners/">Partners</a>
-        <a href="/industries/">Industries</a>
-        <a href="/government-solutions/">Government</a>
-        <a href="/about/">About</a>
-        <a href="/contact/">Contact</a>
+      <nav class="footer-nav" aria-label="Site" data-i18n-attr="aria-label:footer.nav.aria">
+        <p class="fn-head" data-i18n="footer.nav.heading">Site</p>
+        <a href="/capabilities/" data-i18n="footer.nav.capabilities">Capabilities</a>
+        <a href="/manufacturers/" data-i18n="footer.nav.manufacturers">Manufacturers</a>
+        <a href="/partners/" data-i18n="footer.nav.partners">Partners</a>
+        <a href="/industries/" data-i18n="footer.nav.industries">Industries</a>
+        <a href="/government-solutions/" data-i18n="footer.nav.government">Government</a>
+        <a href="/about/" data-i18n="footer.nav.about">About</a>
+        <a href="/contact/" data-i18n="footer.nav.contact">Contact</a>
       </nav>
       <div class="footer-trust">
-        <p class="footer-role">ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.</p>
+        <p class="footer-role" data-i18n="footer.role">ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.</p>
         <ul class="footer-meta">
           <li>ARTIX ehf.</li>
-          <li>NCAGE <strong>STBZ8</strong> — an identity code in the NATO Codification System, not a clearance.</li>
+          <li data-i18n="footer.meta.ncage">NCAGE <strong>STBZ8</strong> — an identity code in the NATO Codification System, not a clearance.</li>
           <li>Smiðjuvellir 17, 300 Akranes · Faxaflói</li>
           <li><a href="mailto:artix@artix.is">artix@artix.is</a></li>
-          <li>Exhibited at Enforce Tac (Nuremberg) and Milipol (Paris)</li>
+          <li data-i18n="footer.meta.exhibited">Exhibited at Enforce Tac (Nuremberg) and Milipol (Paris)</li>
         </ul>
-        <p class="footer-tagline" lang="is">Árvekni í þágu öryggis</p>
-        <a class="btn btn-ghost" href="/contact/">Get in touch <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
+        <p class="footer-tagline" data-i18n="footer.tagline">Vigilance in the service of security</p>
+        <a class="btn btn-ghost" href="/contact/" data-i18n="footer.cta.getintouch">Get in touch <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
       </div>
       <div class="footer-helm" aria-hidden="true"><img class="fh-mark" src="/assets/helm-mark.svg" alt="" width="120" height="148"></div>
     </div>
     <p class="footer-wordmark" aria-hidden="true">ARTIX</p>
     <div class="footer-legal">
       <span>© 2026 ARTIX ehf.</span>
-      <nav class="footer-legal-nav" aria-label="Legal"><a href="/about/">About</a><a href="/contact/">Contact</a></nav>
+      <nav class="footer-legal-nav" aria-label="Legal" data-i18n-attr="aria-label:footer.legal.nav.aria"><a href="/about/" data-i18n="footer.legal.nav.about">About</a><a href="/contact/" data-i18n="footer.legal.nav.contact">Contact</a></nav>
     </div>
   </div>
 </footer>
 <!-- partial:footer:end -->
 <script type="module">
 import * as router from '/js/router.js';
+import * as i18n from '/js/i18n.js';
 import * as nav from '/js/nav.js';
 import * as reveal from '/js/reveal.js';
 import * as footer from '/js/footer.js';
 import * as cards from '/js/cards.js';
 import * as cursor from '/js/cursor.js';
-router.mount([nav, reveal, footer, cards, cursor]);
+router.mount([i18n, nav, reveal, footer, cards, cursor]);
 // Contact intake: build a populated mailto on submit so the typed fields aren't lost (zero-build progressive enhancement).
 const intake = document.querySelector('.intake-form');
 if(intake){
   intake.addEventListener('submit', (e) => {
     e.preventDefault();
     const v = (n) => { const el = intake.elements[n]; return el ? el.value.trim() : ''; };
-    const subj = 'ARTIX briefing request' + (v('name') ? ' — ' + v('name') : '');
-    const body = ['Name: ' + v('name'), 'Organisation: ' + v('organisation'), 'Email: ' + v('email'), '', 'Requirement:', v('requirement')].join('\n');
+    // localise the generated email to the active site language
+    const T = document.documentElement.lang === 'is'
+      ? { subj: 'Beiðni um kynningarfund ARTIX', name: 'Nafn: ', org: 'Fyrirtæki eða stofnun: ', email: 'Netfang: ', req: 'Krafa:' }
+      : { subj: 'ARTIX briefing request', name: 'Name: ', org: 'Organisation: ', email: 'Email: ', req: 'Requirement:' };
+    const subj = T.subj + (v('name') ? ' — ' + v('name') : '');
+    const body = [T.name + v('name'), T.org + v('organisation'), T.email + v('email'), '', T.req, v('requirement')].join('\n');
     window.location.href = 'mailto:artix@artix.is?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
   });
 }

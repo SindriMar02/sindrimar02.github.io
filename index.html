@@ -7,13 +7,13 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>document.documentElement.classList.add('js');try{if(window.top!==window.self){window.top.location=window.self.location;}}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ARTIX — a defence &amp; security connector for Iceland and the North Atlantic</title>
-<meta name="description" content="ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.">
+<title data-i18n="home.meta.title">ARTIX — a defence &amp; security connector for Iceland and the North Atlantic</title>
+<meta name="description" data-i18n-attr="content:home.meta.description" content="ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.">
 <link rel="canonical" href="https://artix.is/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ARTIX">
-<meta property="og:title" content="ARTIX — a defence &amp; security connector for Iceland and the North Atlantic">
-<meta property="og:description" content="ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.">
+<meta property="og:title" data-i18n-attr="content:home.meta.og_title" content="ARTIX — a defence &amp; security connector for Iceland and the North Atlantic">
+<meta property="og:description" data-i18n-attr="content:home.meta.og_description" content="ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.">
 <meta property="og:url" content="https://artix.is/">
 <meta property="og:image" content="https://artix.is/assets/og-artix.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -35,35 +35,87 @@
   <button class="boot-skip" type="button">Skip</button>
 </div>
 <!-- partial:masthead:start -->
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#main" data-i18n="nav.skip_to_content">Skip to content</a>
 <header class="masthead" data-masthead>
-  <nav class="mast-pill" aria-label="Primary">
-    <a class="mast-brand" href="/" aria-label="ARTIX — home">
+  <nav class="mast-pill" aria-label="Primary" data-i18n-attr="aria-label:nav.primary.aria_label">
+    <a class="mast-brand" href="/" aria-label="ARTIX — home" data-i18n-attr="aria-label:nav.brand.aria_label">
       <img class="mast-mark" src="/assets/helm-mark.svg" alt="" width="22" height="28">
       <span class="mast-word">ARTIX</span>
     </a>
+
+    <!-- PRIMARY NAV — one grouped disclosure menu + flat links. Triggers are ordinary disclosure
+         buttons (Tab flows naturally, not a trapped menubar). The label sits in its own <span> so the
+         i18n innerHTML swap never wipes the caret. -->
     <ul class="mast-nav">
-      <li><a href="/capabilities/">Capabilities</a></li>
-      <li><a href="/manufacturers/">Manufacturers</a></li>
-      <li><a href="/partners/">Partners</a></li>
-      <li><a href="/industries/">Industries</a></li>
-      <li><a href="/government-solutions/">Government</a></li>
-      <li><a href="/about/">About</a></li>
+      <!-- GROUP 1 — Solutions / Lausnir -->
+      <li class="mast-group">
+        <button class="mast-trigger" id="mg-sol" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="mp-sol"><span data-i18n="nav.group.solutions">Solutions</span><span class="mast-caret" aria-hidden="true"></span></button>
+        <ul class="mast-menu" id="mp-sol" role="menu" aria-labelledby="mg-sol" hidden>
+          <li role="none"><a role="menuitem" href="/capabilities/" data-i18n="nav.link.capabilities">Capabilities</a></li>
+          <li role="none"><a role="menuitem" href="/manufacturers/" data-i18n="nav.link.manufacturers">Manufacturers</a></li>
+          <li role="none"><a role="menuitem" href="/industries/" data-i18n="nav.link.industries">Industries</a></li>
+          <li role="none"><a role="menuitem" href="/government-solutions/" data-i18n="nav.link.government">Government</a></li>
+        </ul>
+      </li>
+
+      <!-- ITEM 2 — Partners ships FLAT (avoids a single-item menu). GROWTH SLOT: when a 2nd network
+           page exists, replace this <li> with the commented .mast-group below, move Partners inside, and
+           un-hide the drawer's "Network" .mast-sect. The dropdown JS is delegated — no JS change needed. -->
+      <li><a href="/partners/" data-i18n="nav.link.partners">Partners</a></li>
+      <!--
+      <li class="mast-group">
+        <button class="mast-trigger" id="mg-net" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="mp-net"><span data-i18n="nav.group.network">Network</span><span class="mast-caret" aria-hidden="true"></span></button>
+        <ul class="mast-menu" id="mp-net" role="menu" aria-labelledby="mg-net" hidden>
+          <li role="none"><a role="menuitem" href="/partners/" data-i18n="nav.link.partners">Partners</a></li>
+        </ul>
+      </li>
+      -->
+
+      <!-- ITEM 3 — About: a single destination, stays flat. -->
+      <li><a href="/about/" data-i18n="nav.link.about">About</a></li>
     </ul>
-    <span class="mast-div" aria-hidden="true"></span>
-    <a class="mast-cta" href="/contact/">Request a briefing</a>
-    <button class="mast-burger" type="button" aria-expanded="false" aria-controls="mast-drawer" aria-label="Open menu"><span aria-hidden="true"></span></button>
+
+    <!-- UTILITY CLUSTER — permanent right home for language + CTA. -->
+    <div class="mast-end">
+      <div class="mast-lang" role="group" aria-label="Language / Tungumál" data-i18n-attr="aria-label:nav.lang">
+        <button type="button" data-lang-btn="is" aria-pressed="false" lang="is">IS</button>
+        <span class="mast-lang-sep" aria-hidden="true"></span>
+        <button type="button" data-lang-btn="en" aria-pressed="true" lang="en">EN</button>
+      </div>
+      <span class="mast-div" aria-hidden="true"></span>
+      <a class="mast-cta" href="/contact/" data-i18n="nav.cta.request_briefing">Request a briefing</a>
+    </div>
+
+    <button class="mast-burger" type="button" aria-expanded="false" aria-controls="mast-drawer" aria-label="Open menu" data-i18n-attr="aria-label:nav.burger.open.aria_label"><span aria-hidden="true"></span></button>
   </nav>
-  <div class="mast-drawer" id="mast-drawer" role="dialog" aria-modal="true" aria-label="Menu" hidden>
-    <ul>
-      <li><a href="/capabilities/">Capabilities</a></li>
-      <li><a href="/manufacturers/">Manufacturers</a></li>
-      <li><a href="/partners/">Partners</a></li>
-      <li><a href="/industries/">Industries</a></li>
-      <li><a href="/government-solutions/">Government solutions</a></li>
-      <li><a href="/about/">About</a></li>
-      <li><a class="mast-cta" href="/contact/">Request a briefing</a></li>
-    </ul>
+
+  <!-- MOBILE DRAWER (≤860px) — groups as labelled sub-sections (non-focusable eyebrow headings), toggle
+       pinned at foot. No dropdown machinery on mobile: every link is flat and directly tappable. nav.js
+       focus-trap queries a[href],button so the toggle buttons are auto-included; the stagger is
+       count-agnostic (per-<li> --i custom property). -->
+  <div class="mast-drawer" id="mast-drawer" role="dialog" aria-modal="true" aria-label="Menu" data-i18n-attr="aria-label:nav.drawer.aria_label" hidden>
+    <nav class="mast-drawer-nav" aria-label="Mobile">
+      <p class="mast-sect" id="dsec-sol" data-i18n="nav.group.solutions">Solutions</p>
+      <ul aria-labelledby="dsec-sol">
+        <li style="--i:0"><a href="/capabilities/" data-i18n="nav.link.capabilities">Capabilities</a></li>
+        <li style="--i:1"><a href="/manufacturers/" data-i18n="nav.link.manufacturers">Manufacturers</a></li>
+        <li style="--i:2"><a href="/industries/" data-i18n="nav.link.industries">Industries</a></li>
+        <li style="--i:3"><a href="/government-solutions/" data-i18n="nav.drawer.link.government_solutions">Government solutions</a></li>
+      </ul>
+      <p class="mast-sect" id="dsec-net" data-i18n="nav.group.network" hidden>Network</p>
+      <ul aria-labelledby="dsec-net">
+        <li style="--i:4"><a href="/partners/" data-i18n="nav.link.partners">Partners</a></li>
+        <li style="--i:5"><a href="/about/" data-i18n="nav.link.about">About</a></li>
+      </ul>
+    </nav>
+
+    <a class="mast-cta" href="/contact/" data-i18n="nav.cta.request_briefing">Request a briefing</a>
+
+    <div class="mast-lang mast-lang-drawer" role="group" aria-label="Language / Tungumál" data-i18n-attr="aria-label:nav.lang">
+      <button type="button" data-lang-btn="is" aria-pressed="false" lang="is">IS</button>
+      <span class="mast-lang-sep" aria-hidden="true"></span>
+      <button type="button" data-lang-btn="en" aria-pressed="true" lang="en">EN</button>
+    </div>
   </div>
 </header>
 <!-- partial:masthead:end -->
@@ -77,9 +129,9 @@
       <canvas class="descent-canvas" aria-hidden="true"></canvas>
       <div class="descent-hud" aria-hidden="true">
         <div class="dh-datum">
-          <p class="dh-tag"><span class="dh-dot"></span>RECON · LIVE</p>
-          <p class="dh-read"><span class="dh-k">ALT</span> <b class="dh-alt">420</b> <span class="dh-u">KM</span></p>
-          <p class="dh-read"><span class="dh-k">VEL</span> <b class="dh-vel">7.6</b> <span class="dh-u">KM/S</span></p>
+          <p class="dh-tag" data-i18n="home.descent.hud_tag"><span class="dh-dot"></span>RECON · LIVE</p>
+          <p class="dh-read"><span class="dh-k" data-i18n="home.descent.hud_alt_label">ALT</span> <b class="dh-alt">420</b> <span class="dh-u" data-i18n="home.descent.hud_alt_unit">KM</span></p>
+          <p class="dh-read"><span class="dh-k" data-i18n="home.descent.hud_vel_label">VEL</span> <b class="dh-vel">7.6</b> <span class="dh-u" data-i18n="home.descent.hud_vel_unit">KM/S</span></p>
         </div>
       </div>
       <svg class="dsc-defs" width="0" height="0" aria-hidden="true"><filter id="dscFrost" x="-12%" y="-12%" width="124%" height="124%"><feTurbulence type="fractalNoise" baseFrequency="0.014 0.13" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
@@ -88,11 +140,11 @@
       <span class="descent-scan" aria-hidden="true"></span>
       <div class="descent-brand">
         <p class="descent-word">ARTIX</p>
-        <p class="descent-sub">Sourced. Delivered. Supported.</p>
+        <p class="descent-sub" data-i18n="home.descent.brand_sub">Sourced. Delivered. Supported.</p>
       </div>
-      <p class="descent-coord"><span class="dc-status">ACQUIRING</span> <span class="dc-val">&mdash;&mdash;.&mdash;&mdash;&deg;N &mdash;&mdash;.&mdash;&mdash;&deg;W</span></p>
+      <p class="descent-coord"><span class="dc-status" data-i18n="home.descent.coord_status">ACQUIRING</span> <span class="dc-val">&mdash;&mdash;.&mdash;&mdash;&deg;N &mdash;&mdash;.&mdash;&mdash;&deg;W</span></p>
       </div>
-      <div class="story" id="story" aria-label="ARTIX — defence and security equipment supplier">
+      <div class="story" id="story" data-i18n-attr="aria-label:home.story.aria_label" aria-label="ARTIX — defence and security equipment supplier">
         <canvas class="story-canvas" aria-hidden="true"></canvas>
       <span class="story-grade" aria-hidden="true"></span>
       <span class="story-scrim" aria-hidden="true"></span>
@@ -100,55 +152,55 @@
       <div class="chapters">
         <article class="chapter chapter-hero" data-chapter="0">
           <span class="ch-status" aria-hidden="true"><b></b><em>Decoding</em></span>
-          <p class="eyebrow">64.32&deg;N 22.08&deg;W &middot; North Atlantic</p>
-          <h1 class="ch-title"><span class="ln"><i>Defence equipment,</i></span><span class="ln"><i>delivered and supported.</i></span></h1>
-          <p class="ch-sub">An independent defence and security supplier for Iceland and the North Atlantic.</p>
-          <p class="ch-cue" aria-hidden="true">Scroll to begin <span>&darr;</span></p>
+          <p class="eyebrow" data-i18n="home.ch0.eyebrow">64.32&deg;N 22.08&deg;W &middot; North Atlantic</p>
+          <h1 class="ch-title" data-i18n="home.ch0.title"><span class="ln"><i>Defence equipment,</i></span><span class="ln"><i>delivered and supported.</i></span></h1>
+          <p class="ch-sub" data-i18n="home.ch0.sub">An independent defence and security supplier for Iceland and the North Atlantic.</p>
+          <p class="ch-cue" aria-hidden="true" data-i18n="home.ch0.cue">Scroll to begin <span>&darr;</span></p>
         </article>
-        <article class="chapter" data-chapter="1"><p class="eyebrow">01 &middot; The context</p><h2 class="ch-title"><span class="ln"><i>A small nation,</i></span><span class="ln"><i>a vast area.</i></span></h2><p class="ch-sub">A founding NATO ally with no standing army is responsible for one of the largest maritime and search-and-rescue areas in the Euro-Atlantic.</p></article>
-        <article class="chapter" data-chapter="2"><p class="eyebrow">02 &middot; The need</p><h2 class="ch-title"><span class="ln"><i>Readiness is</i></span><span class="ln"><i>procured, not raised.</i></span></h2><p class="ch-sub">With no standing army, capability here is sourced, specified and sustained &mdash; the gap ARTIX exists to fill.</p></article>
-        <article class="chapter" data-chapter="3"><p class="eyebrow">03 &middot; What we do</p><h2 class="ch-title"><span class="ln"><i>Source, vet,</i></span><span class="ln"><i>deliver, support.</i></span></h2><p class="ch-sub">We manage the full path from manufacturer to end-user &mdash; sourcing, vetting, specification, procurement, delivery, integration and through-life support.</p><p class="ch-cta"><a class="ch-link" href="/capabilities/">Explore capabilities</a></p></article>
-        <article class="chapter" data-chapter="4"><p class="eyebrow">04 &middot; The network</p><h2 class="ch-title"><span class="ln"><i>A vetted</i></span><span class="ln"><i>manufacturer network.</i></span></h2><p class="ch-sub">We hold established relationships with trusted international manufacturers, so a single requirement reaches the right source. We do not manufacture.</p><p class="ch-cta"><a class="ch-link" href="/manufacturers/">View manufacturers</a></p></article>
-        <article class="chapter" data-chapter="5"><p class="eyebrow">05 &middot; Integration &amp; support</p><h2 class="ch-title"><span class="ln"><i>One accountable line,</i></span><span class="ln"><i>source to support.</i></span></h2><p class="ch-sub">Integration, training and host-nation relationships that hold across the equipment's service life.</p><p class="ch-cta"><a class="ch-link" href="/partners/">Meet the network</a></p></article>
-        <article class="chapter" data-chapter="6"><p class="eyebrow">06 &middot; Who we serve</p><h2 class="ch-title"><span class="ln"><i>Defence</i></span><span class="ln"><i>and security.</i></span></h2><p class="ch-sub">Defence, law-enforcement, border and coast-guard, and critical-infrastructure end-users across Iceland and the North Atlantic.</p><p class="ch-cta"><a class="ch-link" href="/industries/">See the industries</a></p></article>
-        <article class="chapter" data-chapter="7"><p class="eyebrow">07 &middot; The company</p><h2 class="ch-title"><span class="ln"><i>Registered.</i></span><span class="ln"><i>Accountable.</i></span></h2><p class="ch-sub">Registered in Iceland and codified with an NCAGE identity in the NATO system. ARTIX supplies and supports equipment &mdash; it does not manufacture or operate it.</p><p class="ch-cta"><a class="ch-link" href="/about/">About ARTIX</a></p></article>
+        <article class="chapter" data-chapter="1"><p class="eyebrow" data-i18n="home.ch1.eyebrow">01 &middot; The context</p><h2 class="ch-title" data-i18n="home.ch1.title"><span class="ln"><i>A small nation,</i></span><span class="ln"><i>a vast area.</i></span></h2><p class="ch-sub" data-i18n="home.ch1.sub">A founding NATO ally with no standing army is responsible for one of the largest maritime and search-and-rescue areas in the Euro-Atlantic.</p></article>
+        <article class="chapter" data-chapter="2"><p class="eyebrow" data-i18n="home.ch2.eyebrow">02 &middot; The need</p><h2 class="ch-title" data-i18n="home.ch2.title"><span class="ln"><i>Readiness is</i></span><span class="ln"><i>procured, not raised.</i></span></h2><p class="ch-sub" data-i18n="home.ch2.sub">With no standing army, capability here is sourced, specified and sustained &mdash; the gap ARTIX exists to fill.</p></article>
+        <article class="chapter" data-chapter="3"><p class="eyebrow" data-i18n="home.ch3.eyebrow">03 &middot; What we do</p><h2 class="ch-title" data-i18n="home.ch3.title"><span class="ln"><i>Source, vet,</i></span><span class="ln"><i>deliver, support.</i></span></h2><p class="ch-sub" data-i18n="home.ch3.sub">We manage the full path from manufacturer to end-user &mdash; sourcing, vetting, specification, procurement, delivery, integration and through-life support.</p><p class="ch-cta"><a class="ch-link" href="/capabilities/" data-i18n="home.ch3.link">Explore capabilities</a></p></article>
+        <article class="chapter" data-chapter="4"><p class="eyebrow" data-i18n="home.ch4.eyebrow">04 &middot; The network</p><h2 class="ch-title" data-i18n="home.ch4.title"><span class="ln"><i>A vetted</i></span><span class="ln"><i>manufacturer network.</i></span></h2><p class="ch-sub" data-i18n="home.ch4.sub">We hold established relationships with trusted international manufacturers, so a single requirement reaches the right source. We do not manufacture.</p><p class="ch-cta"><a class="ch-link" href="/manufacturers/" data-i18n="home.ch4.link">View manufacturers</a></p></article>
+        <article class="chapter" data-chapter="5"><p class="eyebrow" data-i18n="home.ch5.eyebrow">05 &middot; Integration &amp; support</p><h2 class="ch-title" data-i18n="home.ch5.title"><span class="ln"><i>One accountable line,</i></span><span class="ln"><i>source to support.</i></span></h2><p class="ch-sub" data-i18n="home.ch5.sub">Integration, training and host-nation relationships that hold across the equipment's service life.</p><p class="ch-cta"><a class="ch-link" href="/partners/" data-i18n="home.ch5.link">Meet the network</a></p></article>
+        <article class="chapter" data-chapter="6"><p class="eyebrow" data-i18n="home.ch6.eyebrow">06 &middot; Who we serve</p><h2 class="ch-title" data-i18n="home.ch6.title"><span class="ln"><i>Defence</i></span><span class="ln"><i>and security.</i></span></h2><p class="ch-sub" data-i18n="home.ch6.sub">Defence, law-enforcement, border and coast-guard, and critical-infrastructure end-users across Iceland and the North Atlantic.</p><p class="ch-cta"><a class="ch-link" href="/industries/" data-i18n="home.ch6.link">See the industries</a></p></article>
+        <article class="chapter" data-chapter="7"><p class="eyebrow" data-i18n="home.ch7.eyebrow">07 &middot; The company</p><h2 class="ch-title" data-i18n="home.ch7.title"><span class="ln"><i>Registered.</i></span><span class="ln"><i>Accountable.</i></span></h2><p class="ch-sub" data-i18n="home.ch7.sub">Registered in Iceland and codified with an NCAGE identity in the NATO system. ARTIX supplies and supports equipment &mdash; it does not manufacture or operate it.</p><p class="ch-cta"><a class="ch-link" href="/about/" data-i18n="home.ch7.link">About ARTIX</a></p></article>
         </div>
       </div>
     </div>
   </section>
-  <a class="story-skip skip-link" href="#site-footer">Skip to footer</a>
-  <button class="cine-skip" type="button" aria-label="Skip the intro cinematic">Skip intro<span class="cs-line" aria-hidden="true"></span><span class="cs-arrow" aria-hidden="true">&darr;</span></button>
+  <a class="story-skip skip-link" href="#site-footer" data-i18n="home.story.skip_footer">Skip to footer</a>
+  <button class="cine-skip" type="button" aria-label="Skip the intro cinematic" data-i18n-attr="aria-label:home.cine.skip_aria" data-i18n="home.cine.skip_label">Skip intro<span class="cs-line" aria-hidden="true"></span><span class="cs-arrow" aria-hidden="true">&darr;</span></button>
   <div class="story-rail" aria-hidden="true"><span class="story-rail-num">00</span><span class="story-rail-track"><span class="story-rail-fill"></span></span><span class="story-rail-tot">07</span></div>
 
   <!-- ============ A · WHAT WE CONNECT — bento hub ============ -->
   <section class="home-section hub" aria-labelledby="hub-h">
     <header class="home-head">
-      <p class="eyebrow" data-reveal data-reveal-index="0">What we do</p>
-      <h2 id="hub-h" class="home-h" data-reveal data-reveal-index="1">A single, accountable supply line.</h2>
-      <p class="lede" data-reveal data-reveal-index="2">We sit between the manufacturers and the end-users — adding local presence, regional knowledge and a single point of accountability across the equipment's life.</p>
+      <p class="eyebrow" data-reveal data-reveal-index="0" data-i18n="home.hub.eyebrow">What we do</p>
+      <h2 id="hub-h" class="home-h" data-reveal data-reveal-index="1" data-i18n="home.hub.h2">A single, accountable supply line.</h2>
+      <p class="lede" data-reveal data-reveal-index="2" data-i18n="home.hub.lede">We sit between the manufacturers and the end-users — adding local presence, regional knowledge and a single point of accountability across the equipment's life.</p>
     </header>
     <div class="bento-grid">
       <article class="bento-card feature connector" data-reveal data-reveal-index="0">
         <div class="bento-body">
-          <h3 class="bento-title">Source to support.</h3>
-          <p class="bento-line">Six stages, one accountable line — from sourcing to through-life support.</p>
-          <ol class="lifecycle" aria-label="The ARTIX connector lifecycle, source to sustainment">
-            <li><span class="lc-no">01</span><span class="lc-label">Source</span></li>
-            <li><span class="lc-no">02</span><span class="lc-label">Vet</span></li>
-            <li><span class="lc-no">03</span><span class="lc-label">Match</span></li>
-            <li><span class="lc-no">04</span><span class="lc-label">Deliver</span></li>
-            <li><span class="lc-no">05</span><span class="lc-label">Integrate</span></li>
-            <li><span class="lc-no">06</span><span class="lc-label">Sustain</span></li>
+          <h3 class="bento-title" data-i18n="home.hub.connector.title">Source to support.</h3>
+          <p class="bento-line" data-i18n="home.hub.connector.line">Six stages, one accountable line — from sourcing to through-life support.</p>
+          <ol class="lifecycle" aria-label="The ARTIX connector lifecycle, source to sustainment" data-i18n-attr="aria-label:home.hub.lifecycle.aria">
+            <li><span class="lc-no">01</span><span class="lc-label" data-i18n="home.hub.lifecycle.source">Source</span></li>
+            <li><span class="lc-no">02</span><span class="lc-label" data-i18n="home.hub.lifecycle.vet">Vet</span></li>
+            <li><span class="lc-no">03</span><span class="lc-label" data-i18n="home.hub.lifecycle.match">Match</span></li>
+            <li><span class="lc-no">04</span><span class="lc-label" data-i18n="home.hub.lifecycle.deliver">Deliver</span></li>
+            <li><span class="lc-no">05</span><span class="lc-label" data-i18n="home.hub.lifecycle.integrate">Integrate</span></li>
+            <li><span class="lc-no">06</span><span class="lc-label" data-i18n="home.hub.lifecycle.sustain">Sustain</span></li>
           </ol>
-          <a class="bento-go" href="/capabilities/">Explore capabilities <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
+          <a class="bento-go" href="/capabilities/" data-i18n="home.hub.connector.go">Explore capabilities <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
         </div>
       </article>
       <a class="bento-card accent" href="/industries/" data-reveal data-reveal-index="1">
         <div class="bento-media"><img class="bento-poster" src="/assets/home/industries.webp" alt="" width="1280" height="720" loading="lazy"></div>
         <div class="bento-body">
           <span class="bento-expand" aria-hidden="true"></span>
-          <h3 class="bento-title">Every sector we serve</h3>
-          <p class="bento-line">Maritime, aerospace, land and critical-infrastructure end-users across the North Atlantic.</p>
+          <h3 class="bento-title" data-i18n="home.hub.industries.title">Every sector we serve</h3>
+          <p class="bento-line" data-i18n="home.hub.industries.line">Maritime, aerospace, land and critical-infrastructure end-users across the North Atlantic.</p>
           <span class="bento-go">See the industries <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
         </div>
       </a>
@@ -156,27 +208,27 @@
         <div class="bento-media"><img class="bento-poster" src="/assets/home/manufacturers.webp" alt="" width="1280" height="720" loading="lazy"></div>
         <div class="bento-body">
           <span class="bento-expand" aria-hidden="true"></span>
-          <h3 class="bento-title">A vetted manufacturer network</h3>
-          <p class="bento-line">We hold the manufacturer relationships, so one requirement reaches the right source.</p>
-          <span class="bento-go">View makers <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
+          <h3 class="bento-title" data-i18n="home.hub.manufacturers.title">A vetted manufacturer network</h3>
+          <p class="bento-line" data-i18n="home.hub.manufacturers.line">We hold the manufacturer relationships, so one requirement reaches the right source.</p>
+          <span class="bento-go" data-i18n="home.hub.manufacturers.go">View makers <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
         </div>
       </a>
       <a class="bento-card equal" href="/partners/" data-reveal data-reveal-index="3">
         <div class="bento-media"><img class="bento-poster" src="/assets/home/partnerships.webp" alt="" width="1280" height="720" loading="lazy"></div>
         <div class="bento-body">
           <span class="bento-expand" aria-hidden="true"></span>
-          <h3 class="bento-title">Integration &amp; sustainment</h3>
-          <p class="bento-line">Integration, training and host-nation partnerships for through-life support.</p>
-          <span class="bento-go">Meet the network <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
+          <h3 class="bento-title" data-i18n="home.hub.partners.title">Integration &amp; sustainment</h3>
+          <p class="bento-line" data-i18n="home.hub.partners.line">Integration, training and host-nation partnerships for through-life support.</p>
+          <span class="bento-go" data-i18n="home.hub.partners.go">Meet the network <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
         </div>
       </a>
       <a class="bento-card equal" href="/government-solutions/" data-reveal data-reveal-index="4">
         <div class="bento-media"><img class="bento-poster" src="/assets/home/government.webp" alt="" width="1280" height="720" loading="lazy"></div>
         <div class="bento-body">
           <span class="bento-expand" aria-hidden="true"></span>
-          <h3 class="bento-title">For government bodies</h3>
-          <p class="bento-line">Procurement-ready support for state, defence and security agencies.</p>
-          <span class="bento-go">Government <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
+          <h3 class="bento-title" data-i18n="home.hub.government.title">For government bodies</h3>
+          <p class="bento-line" data-i18n="home.hub.government.line">Procurement-ready support for state, defence and security agencies.</p>
+          <span class="bento-go" data-i18n="home.hub.government.go">Government <span class="btn-arrow" aria-hidden="true">&rarr;</span></span>
         </div>
       </a>
     </div>
@@ -185,24 +237,24 @@
   <!-- ============ A2 · CONNECTOR FLOW — Manufacturers → ARTIX → End-users (scroll-driven beams) ============ -->
   <section class="home-section flow" id="connect" aria-labelledby="flow-h">
     <header class="home-head">
-      <p class="eyebrow" data-reveal data-reveal-index="0">How it works</p>
-      <h2 id="flow-h" class="home-h" data-reveal data-reveal-index="1">From manufacturer to end-user.</h2>
-      <p class="lede" data-reveal data-reveal-index="2">ARTIX carries each requirement from trusted manufacturers, through procurement and compliance, to the end-users who depend on it — sourced, vetted, delivered and supported.</p>
+      <p class="eyebrow" data-reveal data-reveal-index="0" data-i18n="home.flow.eyebrow">How it works</p>
+      <h2 id="flow-h" class="home-h" data-reveal data-reveal-index="1" data-i18n="home.flow.h2">From manufacturer to end-user.</h2>
+      <p class="lede" data-reveal data-reveal-index="2" data-i18n="home.flow.lede">ARTIX carries each requirement from trusted manufacturers, through procurement and compliance, to the end-users who depend on it — sourced, vetted, delivered and supported.</p>
     </header>
-    <div class="flow-diagram" data-flow role="img" aria-label="ARTIX connects international manufacturers to the end-users who protect Iceland and the North Atlantic.">
+    <div class="flow-diagram" data-flow role="img" aria-label="ARTIX connects international manufacturers to the end-users who protect Iceland and the North Atlantic." data-i18n-attr="aria-label:home.flow.diagram.aria">
       <span class="cf-stage">
         <span class="cf-num" aria-hidden="true">01</span>
-        <span class="cf-label">Manufacturers</span>
+        <span class="cf-label" data-i18n="home.flow.stage.manufacturers">Manufacturers</span>
       </span>
       <span class="cf-seg cf-seg-1" aria-hidden="true"><span class="cf-rail"></span><span class="cf-pulse"></span></span>
       <span class="cf-stage cf-hub-stage">
         <span class="cf-num" aria-hidden="true">02</span>
-        <img class="cf-helm" src="/assets/helm-mark.svg" alt="ARTIX" width="38" height="47">
+        <img class="cf-helm" src="/assets/helm-mark.svg" alt="ARTIX" width="38" height="47" data-i18n-attr="alt:home.flow.hub.helm_alt">
       </span>
       <span class="cf-seg cf-seg-2" aria-hidden="true"><span class="cf-rail"></span><span class="cf-pulse"></span></span>
       <span class="cf-stage">
         <span class="cf-num" aria-hidden="true">03</span>
-        <span class="cf-label">End-users</span>
+        <span class="cf-label" data-i18n="home.flow.stage.endusers">End-users</span>
       </span>
     </div>
   </section>
@@ -210,17 +262,17 @@
   <!-- ============ B · WHO WE SERVE — audience grid ============ -->
   <section class="home-section audience" aria-labelledby="aud-h">
     <header class="home-head">
-      <p class="eyebrow" data-reveal data-reveal-index="0">Who we serve</p>
-      <h2 id="aud-h" class="home-h" data-reveal data-reveal-index="1">Who we equip.</h2>
-      <p class="lede" data-reveal data-reveal-index="2">From coast guard to border control &mdash; the organisations ARTIX sources, delivers and supports equipment for.</p>
+      <p class="eyebrow" data-reveal data-reveal-index="0" data-i18n="home.audience.eyebrow">Who we serve</p>
+      <h2 id="aud-h" class="home-h" data-reveal data-reveal-index="1" data-i18n="home.audience.h2">Who we equip.</h2>
+      <p class="lede" data-reveal data-reveal-index="2" data-i18n="home.audience.lede">From coast guard to border control &mdash; the organisations ARTIX sources, delivers and supports equipment for.</p>
     </header>
     <ul class="aud-grid">
-      <li class="aud-tile" data-reveal data-reveal-index="0"><span class="aud-no">01</span><h3 class="aud-name">Defence &amp; special forces</h3><p class="aud-line">Mission-matched equipment, integrated and sustained.</p></li>
-      <li class="aud-tile" data-reveal data-reveal-index="1"><span class="aud-no">02</span><h3 class="aud-name">Police &amp; law enforcement</h3><p class="aud-line">Equipment specified for national and regional units.</p></li>
-      <li class="aud-tile" data-reveal data-reveal-index="2"><span class="aud-no">03</span><h3 class="aud-name">Airport &amp; border security</h3><p class="aud-line">Screening, surveillance and perimeter capability.</p></li>
-      <li class="aud-tile" data-reveal data-reveal-index="3"><span class="aud-no">04</span><h3 class="aud-name">Coast guard &amp; maritime</h3><p class="aud-line">Sensors and craft for maritime patrol and search-and-rescue.</p></li>
-      <li class="aud-tile" data-reveal data-reveal-index="4"><span class="aud-no">05</span><h3 class="aud-name">Critical infrastructure</h3><p class="aud-line">Protection for energy, ports and communications.</p></li>
-      <li class="aud-tile" data-reveal data-reveal-index="5"><span class="aud-no">06</span><h3 class="aud-name">Government &amp; state bodies</h3><p class="aud-line">Accountable procurement and through-life support.</p></li>
+      <li class="aud-tile" data-reveal data-reveal-index="0"><span class="aud-no">01</span><h3 class="aud-name" data-i18n="home.audience.tile1.name">Defence &amp; special forces</h3><p class="aud-line" data-i18n="home.audience.tile1.line">Mission-matched equipment, integrated and sustained.</p></li>
+      <li class="aud-tile" data-reveal data-reveal-index="1"><span class="aud-no">02</span><h3 class="aud-name" data-i18n="home.audience.tile2.name">Police &amp; law enforcement</h3><p class="aud-line" data-i18n="home.audience.tile2.line">Equipment specified for national and regional units.</p></li>
+      <li class="aud-tile" data-reveal data-reveal-index="2"><span class="aud-no">03</span><h3 class="aud-name" data-i18n="home.audience.tile3.name">Airport &amp; border security</h3><p class="aud-line" data-i18n="home.audience.tile3.line">Screening, surveillance and perimeter capability.</p></li>
+      <li class="aud-tile" data-reveal data-reveal-index="3"><span class="aud-no">04</span><h3 class="aud-name" data-i18n="home.audience.tile4.name">Coast guard &amp; maritime</h3><p class="aud-line" data-i18n="home.audience.tile4.line">Sensors and craft for maritime patrol and search-and-rescue.</p></li>
+      <li class="aud-tile" data-reveal data-reveal-index="4"><span class="aud-no">05</span><h3 class="aud-name" data-i18n="home.audience.tile5.name">Critical infrastructure</h3><p class="aud-line" data-i18n="home.audience.tile5.line">Protection for energy, ports and communications.</p></li>
+      <li class="aud-tile" data-reveal data-reveal-index="5"><span class="aud-no">06</span><h3 class="aud-name" data-i18n="home.audience.tile6.name">Government &amp; state bodies</h3><p class="aud-line" data-i18n="home.audience.tile6.line">Accountable procurement and through-life support.</p></li>
     </ul>
   </section>
 
@@ -229,29 +281,29 @@
     <div class="net-media" aria-hidden="true"><img src="/assets/home/preparedness.webp" alt="" class="u-graded" data-parallax loading="lazy" decoding="async"></div>
     <div class="net-scrim" aria-hidden="true"></div>
     <div class="net-inner">
-      <p class="eyebrow" data-reveal data-reveal-index="0">The vetted network</p>
-      <h2 id="net-h" class="home-h" data-reveal data-reveal-index="1">One network. One point of accountability.</h2>
-      <p class="lede" data-reveal data-reveal-index="2">We hold the relationships with trusted international manufacturers, so a single requirement reaches the right source &mdash; and one accountable line runs from order to through-life support.</p>
+      <p class="eyebrow" data-reveal data-reveal-index="0" data-i18n="home.network.eyebrow">The vetted network</p>
+      <h2 id="net-h" class="home-h" data-reveal data-reveal-index="1" data-i18n="home.network.h2">One network. One point of accountability.</h2>
+      <p class="lede" data-reveal data-reveal-index="2" data-i18n="home.network.lede">We hold the relationships with trusted international manufacturers, so a single requirement reaches the right source &mdash; and one accountable line runs from order to through-life support.</p>
       <ul class="net-points">
-        <li data-reveal data-reveal-index="3"><span class="np-k">Fit</span><span class="np-v">Matched to mission and environment.</span></li>
-        <li data-reveal data-reveal-index="4"><span class="np-k">Compliance</span><span class="np-v">Export, end-use and standards managed.</span></li>
-        <li data-reveal data-reveal-index="5"><span class="np-k">Through-life</span><span class="np-v">Sustained long after delivery.</span></li>
+        <li data-reveal data-reveal-index="3"><span class="np-k" data-i18n="home.network.point1.k">Fit</span><span class="np-v" data-i18n="home.network.point1.v">Matched to mission and environment.</span></li>
+        <li data-reveal data-reveal-index="4"><span class="np-k" data-i18n="home.network.point2.k">Compliance</span><span class="np-v" data-i18n="home.network.point2.v">Export, end-use and standards managed.</span></li>
+        <li data-reveal data-reveal-index="5"><span class="np-k" data-i18n="home.network.point3.k">Through-life</span><span class="np-v" data-i18n="home.network.point3.v">Sustained long after delivery.</span></li>
       </ul>
-      <a class="btn btn-ghost" href="/manufacturers/" data-reveal data-reveal-index="6">View the network <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
+      <a class="btn btn-ghost" href="/manufacturers/" data-reveal data-reveal-index="6" data-i18n="home.network.button">View the network <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
     </div>
   </section>
 
   <!-- ============ D · PROOF & STANDING — instrument readout ============ -->
   <section class="home-section proof" aria-labelledby="proof-h">
     <header class="home-head">
-      <p class="eyebrow" data-reveal data-reveal-index="0">Credentials</p>
-      <h2 id="proof-h" class="home-h" data-reveal data-reveal-index="1">Standing &amp; credentials.</h2>
+      <p class="eyebrow" data-reveal data-reveal-index="0" data-i18n="home.proof.eyebrow">Credentials</p>
+      <h2 id="proof-h" class="home-h" data-reveal data-reveal-index="1" data-i18n="home.proof.h2">Standing &amp; credentials.</h2>
     </header>
     <dl class="proof-grid">
-      <div class="proof-tile" data-reveal data-reveal-index="0"><dt class="pt-k">NATO codification</dt><dd class="pt-v mono">STBZ8</dd><dd class="pt-n">An NCAGE identity code &mdash; not a clearance.</dd></div>
-      <div class="proof-tile" data-reveal data-reveal-index="1"><dt class="pt-k">Operating context</dt><dd class="pt-v">Founding NATO ally</dd><dd class="pt-n">No standing army &middot; one of Europe's largest maritime areas.</dd></div>
-      <div class="proof-tile" data-reveal data-reveal-index="2"><dt class="pt-k">Trade presence</dt><dd class="pt-v">Enforce Tac &middot; Milipol</dd><dd class="pt-n">Nuremberg &middot; Paris.</dd></div>
-      <div class="proof-tile" data-reveal data-reveal-index="3"><dt class="pt-k">Our role</dt><dd class="pt-v">Supply &amp; support</dd><dd class="pt-n">We source, supply and support &mdash; never manufacture or operate.</dd></div>
+      <div class="proof-tile" data-reveal data-reveal-index="0"><dt class="pt-k" data-i18n="home.proof.tile1.k">NATO codification</dt><dd class="pt-v mono">STBZ8</dd><dd class="pt-n" data-i18n="home.proof.tile1.n">An NCAGE identity code &mdash; not a clearance.</dd></div>
+      <div class="proof-tile" data-reveal data-reveal-index="1"><dt class="pt-k" data-i18n="home.proof.tile2.k">Operating context</dt><dd class="pt-v" data-i18n="home.proof.tile2.v">Founding NATO ally</dd><dd class="pt-n" data-i18n="home.proof.tile2.n">No standing army &middot; one of Europe's largest maritime areas.</dd></div>
+      <div class="proof-tile" data-reveal data-reveal-index="2"><dt class="pt-k" data-i18n="home.proof.tile3.k">Trade presence</dt><dd class="pt-v">Enforce Tac &middot; Milipol</dd><dd class="pt-n" data-i18n="home.proof.tile3.n">Nuremberg &middot; Paris.</dd></div>
+      <div class="proof-tile" data-reveal data-reveal-index="3"><dt class="pt-k" data-i18n="home.proof.tile4.k">Our role</dt><dd class="pt-v" data-i18n="home.proof.tile4.v">Supply &amp; support</dd><dd class="pt-n" data-i18n="home.proof.tile4.n">We source, supply and support &mdash; never manufacture or operate.</dd></div>
     </dl>
   </section>
 
@@ -260,11 +312,11 @@
     <div class="closing-media" aria-hidden="true"><img src="/assets/home/briefing.webp" alt="" class="u-graded" data-parallax loading="lazy" decoding="async"></div>
     <div class="closing-scrim" aria-hidden="true"></div>
     <div class="closing-inner">
-      <p class="eyebrow" data-reveal data-reveal-index="0">Make contact</p>
-      <h2 id="cta-h" class="closing-h" data-reveal data-reveal-index="1">Send us your requirement.</h2>
-      <p class="lede" data-reveal data-reveal-index="2">Tell us what you need to source, specify or sustain &mdash; we'll route it to the right manufacturer and manage it through to delivery.</p>
+      <p class="eyebrow" data-reveal data-reveal-index="0" data-i18n="home.closing.eyebrow">Make contact</p>
+      <h2 id="cta-h" class="closing-h" data-reveal data-reveal-index="1" data-i18n="home.closing.h2">Send us your requirement.</h2>
+      <p class="lede" data-reveal data-reveal-index="2" data-i18n="home.closing.lede">Tell us what you need to source, specify or sustain &mdash; we'll route it to the right manufacturer and manage it through to delivery.</p>
       <div class="closing-actions" data-reveal data-reveal-index="3">
-        <a class="btn btn-primary" href="/contact/">Request a briefing <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
+        <a class="btn btn-primary" href="/contact/" data-i18n="home.closing.btn_primary">Request a briefing <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
         <a class="btn btn-ghost" href="mailto:artix@artix.is">artix@artix.is</a>
       </div>
       <p class="closing-coord label-micro" data-reveal data-reveal-index="4">64.32&deg;N 22.08&deg;W &middot; Smi&eth;juvellir 17, Akranes &middot; Faxafl&oacute;i</p>
@@ -275,34 +327,34 @@
 <footer class="site-footer" id="site-footer" data-footer>
   <div class="footer-col">
     <div class="footer-top">
-      <nav class="footer-nav" aria-label="Site">
-        <p class="fn-head">Site</p>
-        <a href="/capabilities/">Capabilities</a>
-        <a href="/manufacturers/">Manufacturers</a>
-        <a href="/partners/">Partners</a>
-        <a href="/industries/">Industries</a>
-        <a href="/government-solutions/">Government</a>
-        <a href="/about/">About</a>
-        <a href="/contact/">Contact</a>
+      <nav class="footer-nav" aria-label="Site" data-i18n-attr="aria-label:footer.nav.aria">
+        <p class="fn-head" data-i18n="footer.nav.heading">Site</p>
+        <a href="/capabilities/" data-i18n="footer.nav.capabilities">Capabilities</a>
+        <a href="/manufacturers/" data-i18n="footer.nav.manufacturers">Manufacturers</a>
+        <a href="/partners/" data-i18n="footer.nav.partners">Partners</a>
+        <a href="/industries/" data-i18n="footer.nav.industries">Industries</a>
+        <a href="/government-solutions/" data-i18n="footer.nav.government">Government</a>
+        <a href="/about/" data-i18n="footer.nav.about">About</a>
+        <a href="/contact/" data-i18n="footer.nav.contact">Contact</a>
       </nav>
       <div class="footer-trust">
-        <p class="footer-role">ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.</p>
+        <p class="footer-role" data-i18n="footer.role">ARTIX is an independent defence and security supplier and integrator — we source equipment from trusted international manufacturers and deliver and support it for end-users across Iceland and the North Atlantic.</p>
         <ul class="footer-meta">
           <li>ARTIX ehf.</li>
-          <li>NCAGE <strong>STBZ8</strong> — an identity code in the NATO Codification System, not a clearance.</li>
+          <li data-i18n="footer.meta.ncage">NCAGE <strong>STBZ8</strong> — an identity code in the NATO Codification System, not a clearance.</li>
           <li>Smiðjuvellir 17, 300 Akranes · Faxaflói</li>
           <li><a href="mailto:artix@artix.is">artix@artix.is</a></li>
-          <li>Exhibited at Enforce Tac (Nuremberg) and Milipol (Paris)</li>
+          <li data-i18n="footer.meta.exhibited">Exhibited at Enforce Tac (Nuremberg) and Milipol (Paris)</li>
         </ul>
-        <p class="footer-tagline" lang="is">Árvekni í þágu öryggis</p>
-        <a class="btn btn-ghost" href="/contact/">Get in touch <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
+        <p class="footer-tagline" data-i18n="footer.tagline">Vigilance in the service of security</p>
+        <a class="btn btn-ghost" href="/contact/" data-i18n="footer.cta.getintouch">Get in touch <span class="btn-arrow" aria-hidden="true">&rarr;</span></a>
       </div>
       <div class="footer-helm" aria-hidden="true"><img class="fh-mark" src="/assets/helm-mark.svg" alt="" width="120" height="148"></div>
     </div>
     <p class="footer-wordmark" aria-hidden="true">ARTIX</p>
     <div class="footer-legal">
       <span>© 2026 ARTIX ehf.</span>
-      <nav class="footer-legal-nav" aria-label="Legal"><a href="/about/">About</a><a href="/contact/">Contact</a></nav>
+      <nav class="footer-legal-nav" aria-label="Legal" data-i18n-attr="aria-label:footer.legal.nav.aria"><a href="/about/" data-i18n="footer.legal.nav.about">About</a><a href="/contact/" data-i18n="footer.legal.nav.contact">Contact</a></nav>
     </div>
   </div>
 </footer>
@@ -312,6 +364,7 @@
 <script src="/assets/lenis.min.js" defer></script>
 <script type="module">
   import * as router from '/js/router.js';
+  import * as i18n from '/js/i18n.js';
   import * as smooth from '/js/smooth.js';
   import * as boot from '/js/boot.js';
   import * as nav from '/js/nav.js';
@@ -322,7 +375,7 @@
   import * as parallax from '/js/parallax.js';
   import * as connect from '/js/connect-beams.js';
   import * as cardGlow from '/js/card-glow.js';
-  router.mount([smooth, boot, nav, cursor, footer, reveal, parallax, connect, cinematic, cardGlow]);
+  router.mount([i18n, smooth, boot, nav, cursor, footer, reveal, parallax, connect, cinematic, cardGlow]);
 </script>
 </body>
 </html>
