@@ -131,8 +131,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function bump(p){ const d = Math.abs(p - cfg.ctr) / cfg.wid; const s = Math.max(0, 1 - d); return s * s * (3 - 2 * s); }
   function strength(){ return Math.min(1, bump(progress) * cfg.ampMul); }
   function drawWordmark(){
-    const z = Math.min(1, Math.max(0, (progress - 0.06) / 0.22));   // wider window + earlier start: longer "hold" before zoom
-    const scale = 1 + Math.pow(z, 4) * 42;                          // z^4 ease-in: barely creeps → then rushes through the lens
+    const z = Math.min(1, Math.max(0, progress / 0.26));            // push starts the INSTANT the descent begins (no hold) — tracks the footage push-in
+    const scale = 1 + Math.pow(z, 2) * 42;                          // z^2 ease-in: moves toward the camera right away, then accelerates through the lens
     const op = 1 - Math.min(1, Math.max(0, (z - 0.97) / 0.03));     // KEEP: geometric exit fade in the final sliver
     // once the decode is fully settled the wordmark only changes when op/scale change (scroll) — skip clear+draw (+upload) at rest
     if(wmDecode.settled && op === lastWmOp && scale === lastWmScale) return false;
@@ -141,7 +141,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     if(op <= 0.002) return true;                                    // faded out post-zoom — cleared (no ghost), nothing to draw
     const fs = Math.round(wmc.height * 0.11);                       // KEEP: wordmark size
     wmctx.save();
-    wmctx.translate(wmc.width * 0.5, wmc.height * 0.36);            // KEEP: wordmark placing (origin)
+    wmctx.translate(wmc.width * 0.5, wmc.height * 0.30);            // raised so the slogan clears the globe's bright horizon (was 0.36)
     wmctx.scale(scale, scale);
     wmDecode.draw(wmctx, 0, 0, fs, performance.now(), op, scale);   // Treatment-B decode; op = master alpha (zoom-out fade), scale gates the locked-bitmap cache
     wmctx.restore();
