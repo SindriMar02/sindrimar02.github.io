@@ -124,6 +124,14 @@ export function createDiveLens({ canvas, dir, count, settings }){
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
   let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
+  // wmc (wordmark canvas) resolution: REDUCED while the scramble churns (the decode is a blurry chromatic churn by design, so
+  // the lower texel density is invisible) → its per-frame full-canvas clearRect + GPU upload + per-glyph raster all shrink ~3×,
+  // which is the dominant cost of the ~2.7s scramble-in (measured 60→28fps during the 28-glyph slogan beat). Restored to full
+  // res the instant the decode settles so the RESTING wordmark stays crisp (it then uploads once and holds). Mirrors the mobile
+  // static path's DECODE_DPR/FULL_DPR (cinematic.js buildMobileWordmark). The wordmark's ON-SCREEN size/placing is unchanged —
+  // the shader samples wmc in normalised UV, so wmc's pixel count only affects sharpness, not geometry.
+  const WM_FULL_DPR = 1.5, WM_DECODE_DPR = 0.65;
+  let wmDecoding = false;   // true between scrambleIn() and the decode settling — fit() holds wmc at WM_DECODE_DPR meanwhile
   const onResize = () => { needsFit = true; };
   try { ro = new ResizeObserver(() => { needsFit = true; }); ro.observe(canvas); } catch(e){}
   window.addEventListener('resize', onResize, { passive: true });
@@ -156,13 +164,17 @@ export function createDiveLens({ canvas, dir, count, settings }){
     let resized = false;
     if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); resized = true; }
     if(earthC.width !== w || earthC.height !== h){ earthC.width = w; earthC.height = h; resized = true; }   // earthC = canvas res (FULL quality — must match the story frames so the dive→coast hand-off is seamless, no blurry→sharp snap)
-    if(wmc.width !== w || wmc.height !== h){ wmc.width = w; wmc.height = h; resized = true; }
+    const wmDpr = Math.min(window.devicePixelRatio || 1, wmDecoding ? WM_DECODE_DPR : WM_FULL_DPR);   // wordmark canvas: reduced-res while churning, full-res at rest (see WM_*_DPR note)
+    const ww = Math.max(2, Math.round(r.width * wmDpr)), wh = Math.max(2, Math.round(r.height * wmDpr));
+    if(wmc.width !== ww || wmc.height !== wh){ wmc.width = ww; wmc.height = wh; resized = true; }
     return resized;
   }
 
   let painted = false;
   function frame(){
+    if(wmDecoding && wmDecode.settled){ wmDecoding = false; needsFit = true; }   // churn finished → fit() restores wmc to full res this frame (crisp resting wordmark)
     const resized = fit();
+    if(resized){ lastWmOp = -1; lastWmScale = -1; }                              // a wmc/earth realloc cleared the wordmark canvas → force one redraw+upload (also re-bakes it crisp after the settle resize)
     if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; } }   // earthC only changes when the frame/blend moves or on resize
     if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
     const wmChanged = drawWordmark();
@@ -187,7 +199,11 @@ export function createDiveLens({ canvas, dir, count, settings }){
 
   return {
     setProgress(p){ progress = Math.max(0, Math.min(1, p)); setFrame(progress); if(!running) start(); },
-    scrambleIn(){ wmDecode.scrambleIn(performance.now()); },
+    scrambleIn(){ wmDecode.scrambleIn(performance.now());
+      // hold wmc at reduced res through the churn (the big per-frame saving); skip under reduced-motion — there the decode
+      // resolves instantly and never runs bakeLocked, so `settled` would stay false and wmc would be stuck at reduced res.
+      if(!(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion:reduce)').matches)){ wmDecoding = true; needsFit = true; }
+      lastWmOp = -1; lastWmScale = -1; },
     setSub(s){ wmDecode.setSub(s); lastWmOp = -1; lastWmScale = -1; },   // relocalise slogan; force drawWordmark to redraw+re-upload next frame
     redraw(){},
     pause: stop,
