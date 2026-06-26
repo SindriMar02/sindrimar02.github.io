@@ -190,7 +190,11 @@ export function createWordmarkDecode(opts = {}) {
     ctx.restore();
   }
 
-  /** Churning glyph: focus-pull blur + cyan/violet chromatic split, scaleX-fit. */
+  /** Churning glyph: focus-pull blur + cyan/violet chromatic split, scaleX-fit.
+   *  ONE save/restore for both the chromatic split AND the flare glow (was two): the flare reuses the same
+   *  translate/scale/font, so it only needs to flip filter→none + composite→source-over before its shadowed
+   *  ICE pass — pixel-identical to the old two-block version, minus the per-glyph state churn on the hottest
+   *  (flaring) glyphs. textAlign/textBaseline are inherited from drawWord's pre-loop set (never reset in-loop). */
   function paintChurn(ctx, g, x, y, fs, isTitle, p, flare, fit, alpha) {
     const glyphFs = isTitle ? fs : Math.round(fs * SUB_SCALE);
     const blur = (1 - p) * glyphFs * 0.030;   // ≈ 2.1px at 70px
@@ -201,8 +205,6 @@ export function createWordmarkDecode(opts = {}) {
     ctx.translate(x, y);
     if (fit !== 1) ctx.scale(fit, 1);          // fit mono churn into a narrow slot
     ctx.font = '500 ' + glyphFs + 'px "Martian Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     if (blur > 0.2 && 'filter' in ctx) ctx.filter = 'blur(' + blur.toFixed(2) + 'px)';
 
     // additive cyan (left) + violet (right) fringe — the chromatic split
@@ -214,23 +216,18 @@ export function createWordmarkDecode(opts = {}) {
     ctx.globalAlpha = a * (flare ? 1 : 0.82);
     ctx.fillStyle = flare ? 'rgb(166,226,246)' : 'rgb(126,204,234)';
     ctx.fillText(g, 0, 0);
-    ctx.restore();
 
-    // ICE flare glow as it locks in
+    // ICE flare glow as it locks in — sharp (no focus blur), plain source-over over the split
     if (flare) {
-      ctx.save();
-      ctx.translate(x, y);
-      if (fit !== 1) ctx.scale(fit, 1);
-      ctx.font = '500 ' + glyphFs + 'px "Martian Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      if ('filter' in ctx) ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = a * 0.6;
       ctx.shadowColor = 'rgba(116,198,230,0.7)';
       ctx.shadowBlur = glyphFs * 0.18;
       ctx.fillStyle = ICE;
       ctx.fillText(g, 0, 0);
-      ctx.restore();
     }
+    ctx.restore();
   }
 
   /**
