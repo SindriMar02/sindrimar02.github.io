@@ -322,11 +322,17 @@ function buildMobileWordmark(host){
   host.appendChild(cv);
   const ctx = cv.getContext('2d');
   const wm = createWordmarkDecode({ subGap: 0.8, titleStagger: 220 });
-  let raf = 0, settledFrames = 0, cssW = 1, cssH = 1, fs = 0, cx = 0, cy = 0, lastPaint = 0;
+  let raf = 0, settledFrames = 0, cssW = 1, cssH = 1, fs = 0, cx = 0, cy = 0, lastPaint = 0, decoding = false;
+  // The DECODE phase is fuzzy by design (chromatic split + focus-pull blur), so it doesn't need full retina res —
+  // and canvas filter-blur cost scales with pixel area (∝ dpr²). Rasterise the churn at a reduced DPR (1.5) to cut
+  // the per-glyph blur work ~44%, then re-bake the RESOLVED still at full DPR (loop() flips `decoding` off on settle)
+  // so the final wordmark stays crisp. Verified: at 1.5 the churning glyphs are pixel-indistinguishable from 2.0,
+  // and the locked letters snap to full res the instant the decode lands. (mobile/static only; desktop = dive-lens.)
+  const DECODE_DPR = 1.5, FULL_DPR = 2;
   function size(){
     const r = host.getBoundingClientRect();
     cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(decoding ? DECODE_DPR : FULL_DPR, window.devicePixelRatio || 1);
     cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);                 // draw in CSS px, crisp on HiDPI
     fs = Math.round(Math.min(cssH * 0.11, cssW * 0.145));   // confident size; ARTIX (5 wide Michroma glyphs) fits the column
@@ -341,13 +347,17 @@ function buildMobileWordmark(host){
     if((now || 0) - lastPaint < 32) return;
     lastPaint = now || 0;
     paint();
-    if(wm.settled && ++settledFrames > 2){ cancelAnimationFrame(raf); raf = 0; }
+    if(wm.settled){
+      if(decoding){ decoding = false; size(); paint(); }    // decode landed → re-rasterise the resolved still at full DPR (crisp), once
+      if(++settledFrames > 2){ cancelAnimationFrame(raf); raf = 0; }
+    }
   }
   const onResize = () => { size(); if(!raf){ settledFrames = 0; paint(); } };   // URL-bar collapse / orientation: a settled wordmark re-bakes at the new fs inside draw()
   size();
   window.addEventListener('resize', onResize, { passive: true });
   return {
     scrambleIn(){
+      decoding = !mmR.matches;                             // reduced-motion draws the resolved still straight away → keep full DPR
       size(); wm.scrambleIn(performance.now()); settledFrames = 0; lastPaint = 0;
       if(mmR.matches){ paint(); return; }                  // reduced-motion → draw resolved instantly, no loop
       cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
