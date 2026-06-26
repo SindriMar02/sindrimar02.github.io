@@ -1,0 +1,7 @@
+# ARTIX ehf. — security contact / responsible disclosure (RFC 9116).
+# If you have found a security issue affecting artix.is, please report it to the contact below.
+Contact: mailto:artix@artix.is
+Expires: 2027-06-26T00:00:00.000Z
+Preferred-Languages: en, is
+Canonical: https://artix.is/.well-known/security.txt
+# Optional hardening: add a dedicated security@artix.is alias and a PGP "Encryption:" key URL.

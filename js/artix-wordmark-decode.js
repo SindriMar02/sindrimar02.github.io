@@ -1,8 +1,6 @@
 /* artix-wordmark-decode.js
  * ============================================================================
- * ARTIX hero wordmark decode — TREATMENT B ("chromatic split")
- * From the claude-design handoff (design_handoff_artix_scramble). Owner-approved
- * replacement for the rejected artixText()/subInfo() in js/dive-lens.js.
+ * ARTIX hero wordmark decode — chromatic-split treatment.
  * Zero-build, vanilla ES module, no deps.
  * ----------------------------------------------------------------------------
  * THE FEEL (per character, swept left -> right, smoothstep-eased):
