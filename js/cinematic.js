@@ -29,7 +29,7 @@ let st, dSeq, sSeq, dCanvas, sec, stage, dStage, sStage, mast;
 let brand, word, dcStatus, dcVal, frostDisp, frostRaf = 0, ticker = 0, locked = false, revealed = false;
 let telAlt, telVel, descentScrim;
 let chapters = [], rail, railFill, railNum, skipBtn, activePrev = -1;
-let mmW, mmR, onMM, onBooted, onSkip, built = false, phaseStory = false, staticIO = null, staticTimers = [];
+let mmW, mmR, onMM, onBooted, onSkip, onLang, built = false, phaseStory = false, staticIO = null, staticTimers = [];
 let segTargets = [], snapLockT = 0, snapAnim = false, coolUntil = 0, glideRaf = 0, touchY = 0, onSnapInput = null, onSnapKey = null, onTouchStart = null, onTouchMove = null;
 let descentQueued = 0, warmRaf = 0, warmForce = false;   // first descent glide is HELD until the dive frames are cached (dSeq.warm) so the cold-cache scrub never sticks/jumps; the scroll intent is queued + auto-fired on warm
 let mobileWm = null;   // mobile/static hero wordmark — the desktop decode module on a 2D canvas (built in buildStaticDescent)
@@ -132,6 +132,22 @@ function decodeChapter(c){
     if(chip) chip._lock = setTimeout(() => lockChip(chip), titleDone + 140);
     releaseFollowers(titleDone + 140);                                // no sub → follow straight off the title
   }
+}
+// LIVE LANGUAGE SWAP — i18n has already swapped the chapter/hero text in the DOM and fired 'artix:lang'. Relocalise the one
+// thing that is NOT a DOM node (the canvas wordmark slogan), then re-run the decode on whatever is on-screen so the swap reads
+// as a re-scramble into the new language IN PLACE — the page never reloads, so the scroll position is untouched.
+const inView = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < (window.innerHeight || 0); };
+function relocalize(lang){
+  const slogan = lang === 'is' ? 'ÚTVEGAÐ. AFHENT. STUTT.' : 'SOURCED. DELIVERED. SUPPORTED.';
+  if(dSeq && dSeq.setSub) dSeq.setSub(slogan);
+  if(mobileWm && mobileWm.setSub) mobileWm.setSub(slogan);
+  // hero is the resting view → re-decode the wordmark in the new language (the signature scramble)
+  if(!phaseStory && revealed){
+    if(dSeq && dSeq.scrambleIn) dSeq.scrambleIn();
+    else if(mobileWm && mobileWm.scrambleIn) mobileWm.scrambleIn();
+  }
+  // re-decode every chapter currently on-screen (desktop: the one active chapter; static stack: each visible card)
+  chapters.forEach(c => { if(c._on && c.offsetParent !== null && inView(c)) decodeChapter(c); });
 }
 function setLive(c, live){
   if(SUPPORTS_INERT){ c.inert = !live; }
@@ -362,6 +378,7 @@ function buildMobileWordmark(host){
       if(mmR.matches){ paint(); return; }                  // reduced-motion → draw resolved instantly, no loop
       cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     },
+    setSub(s){ wm.setSub(s); if(!raf){ decoding = false; size(); paint(); } },   // relocalise slogan; repaint the resolved still if the decode loop has already stopped
     destroy(){ cancelAnimationFrame(raf); raf = 0; window.removeEventListener('resize', onResize); cv.remove(); }
   };
 }
@@ -498,6 +515,8 @@ export function init(){
   onBooted = () => { revealBrand(); };   // brand entrance when the loader clears — chapter-0 decodes later, AS the story phase enters
   document.addEventListener('artix:booted', onBooted, { once: true });
   document.addEventListener('artix:reveal', onBooted, { once: true });
+  onLang = (e) => relocalize(e.detail && e.detail.lang === 'is' ? 'is' : 'en');   // live IS/EN swap, in place (no reload)
+  document.addEventListener('artix:lang', onLang);
   build();
 }
-export function cleanup(){ if(mmW) mmW.removeEventListener('change', onMM); if(mmR) mmR.removeEventListener('change', onMM); if(onBooted){ document.removeEventListener('artix:booted', onBooted); document.removeEventListener('artix:reveal', onBooted); } if(skipBtn && onSkip) skipBtn.removeEventListener('click', onSkip); teardown(); }
+export function cleanup(){ if(mmW) mmW.removeEventListener('change', onMM); if(mmR) mmR.removeEventListener('change', onMM); if(onBooted){ document.removeEventListener('artix:booted', onBooted); document.removeEventListener('artix:reveal', onBooted); } if(onLang) document.removeEventListener('artix:lang', onLang); if(skipBtn && onSkip) skipBtn.removeEventListener('click', onSkip); teardown(); }

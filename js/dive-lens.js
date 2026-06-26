@@ -188,6 +188,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   return {
     setProgress(p){ progress = Math.max(0, Math.min(1, p)); setFrame(progress); if(!running) start(); },
     scrambleIn(){ wmDecode.scrambleIn(performance.now()); },
+    setSub(s){ wmDecode.setSub(s); lastWmOp = -1; lastWmScale = -1; },   // relocalise slogan; force drawWordmark to redraw+re-upload next frame
     redraw(){},
     pause: stop,
     resume: start,

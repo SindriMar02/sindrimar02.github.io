@@ -52,7 +52,7 @@ const isPass = (c) => c === ' ' || c === '.'; // spaces + periods pass through
  */
 export function createWordmarkDecode(opts = {}) {
   const TITLE         = opts.title         ?? 'ARTIX';
-  const SUB           = opts.sub           ?? 'SOURCED. DELIVERED. SUPPORTED.';
+  let   SUB           = opts.sub           ?? 'SOURCED. DELIVERED. SUPPORTED.';   // mutable: setSub() relocalises the slogan in place (live language swap, no rebuild)
   const TITLE_DUR     = opts.titleDur      ?? 860;
   const TITLE_STAGGER = opts.titleStagger  ?? null;   // if set: stag=settle=titleStagger (sequential one-at-a-time decode)
   const SUB_DUR   = opts.subDur   ?? 1000;
@@ -286,5 +286,9 @@ export function createWordmarkDecode(opts = {}) {
       paintFinal(ctx, s.c, cx + s.cx, cy, fs, isTitle, FROST, (isTitle && !s.pass) ? fs * LOCK_GLOW : 0, 1, master);
   }
 
-  return { scrambleIn, draw, get active() { return active; }, get settled() { return allLocked; } };
+  // Relocalise the slogan in place (live IS/EN swap). Invalidates the layout cache + baked bitmap so the next draw()
+  // re-measures and re-bakes with the new string; pair with scrambleIn() to re-decode it visibly.
+  function setSub(s){ if(s == null || s === SUB) return; SUB = s; cache = null; lockedBitmap = null; allLocked = false; }
+
+  return { scrambleIn, setSub, draw, get active() { return active; }, get settled() { return allLocked; } };
 }
