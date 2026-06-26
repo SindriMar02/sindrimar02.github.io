@@ -311,7 +311,7 @@ html:not(.js) .boot{display:none!important;}
 .footer-col.is-in .footer-wordmark{clip-path:inset(0 0 -8% 0);}
 @media (prefers-reduced-motion:reduce){.footer-wordmark{clip-path:none;}}
 
-.footer-legal{display:flex;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;border-top:1px solid var(--hairline);
+.footer-legal{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);flex-wrap:nowrap;border-top:1px solid var(--hairline);
   padding-top:var(--space-5);font-family:var(--font-mono);font-size:var(--fs-mono-micro);
   letter-spacing:var(--track-mono-ui);color:var(--text-dim);}
 .footer-legal-nav a{margin-left:var(--space-4);color:var(--text-dim);text-decoration:none;}
