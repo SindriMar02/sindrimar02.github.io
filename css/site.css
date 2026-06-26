@@ -44,14 +44,6 @@ a{color:inherit;}
 
 /* PRIMARY NAV — group cluster stays optically centred (margin:0 auto); utility cluster floats right */
 .mast-nav{display:flex;align-items:center;gap:var(--space-6);list-style:none;margin:0 auto;padding:0;}
-/* DESKTOP balance: the brand (left) and utility cluster (right) have different widths, so a plain
-   margin:auto centred the nav in the ASYMMETRIC leftover space → it read left-shifted/uneven. Give both
-   sides equal flex-grow so the nav sits PAGE-centred, and widen the link gaps so they breathe and leave
-   room for the pages we'll add later. (≤860 the nav/cluster are display:none — drawer owns nav there.) */
-@media (min-width:861px){
-  .mast-brand{flex:1 1 0;}
-  .mast-nav{margin:0;gap:clamp(1.75rem,3.4vw,3.25rem);}
-}
 /* flat top-level links AND group triggers share ONE type spec — the bar's typography is unchanged */
 .mast-nav>li>a,.mast-trigger{font-family:var(--font-mono);font-size:var(--fs-mono-nav);letter-spacing:var(--track-mono-ui);
      color:var(--text-dim);text-decoration:none;line-height:1;background:none;border:0;padding:0;cursor:pointer;
@@ -123,7 +115,7 @@ a{color:inherit;}
 @keyframes mastMenuItemIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
 
 /* UTILITY CLUSTER — permanent right home for language + CTA */
-.mast-end{display:flex;align-items:center;gap:var(--space-4);flex:1 1 0;justify-content:flex-end;}   /* grows equally with .mast-brand (desktop) so the nav is page-centred; hidden ≤860 so mobile is unaffected */
+.mast-end{display:flex;align-items:center;gap:var(--space-4);flex:none;}
 
 /* IS/EN SEGMENTED TOGGLE — mono micro caps; active segment = the rationed cyan signal.
    Works zero-JS via i18n.js data-lang-btn auto-wiring (sets aria-pressed + .is-active). */
