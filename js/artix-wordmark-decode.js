@@ -123,17 +123,21 @@ export function createWordmarkDecode(opts = {}) {
     return cache;
   }
 
-  /** Bake the fully-resolved wordmark + slogan into one offscreen bitmap (called once, after both beats settle). */
-  function bakeLocked(L, fs) {
+  /** Bake the fully-resolved wordmark + slogan into one offscreen bitmap (called once, after both beats settle).
+   *  The baked canvas is at DEVICE resolution (dpr applied) so drawImage renders crisp on Retina/HiDPI.
+   *  drawImage must be called with explicit CSS-pixel destination size — see the draw() call site. */
+  function bakeLocked(ctx, L, fs) {
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
     const glow = fs * LOCK_GLOW;
     const w = Math.max(2, Math.ceil(Math.max(L.title.total, L.sub.total) + glow * 2 + fs * 0.5));
     const oy = Math.ceil(fs * 0.85 + glow);                                  // title centre sits this far below the top
     const h = Math.max(2, Math.ceil(oy + fs * SUB_GAP + fs * SUB_SCALE * 0.8 + glow + fs * 0.15));
-    const bc = document.createElement('canvas'); bc.width = w; bc.height = h;
+    const bc = document.createElement('canvas'); bc.width = Math.round(w * dpr); bc.height = Math.round(h * dpr);
     const bx = bc.getContext('2d');
+    bx.setTransform(dpr, 0, 0, dpr, 0, 0);                                   // draw in CSS px so glyph sizes match the live path exactly
     drawWordStatic(bx, L.title, w / 2, oy, fs, true, 1);                     // bake at master alpha 1; live alpha applied on drawImage
     drawWordStatic(bx, L.sub, w / 2, oy + fs * SUB_GAP, fs, false, 1);
-    lockedBitmap = { canvas: bc, fs, ox: w / 2, oy };
+    lockedBitmap = { canvas: bc, fs, dpr, ox: w / 2, oy, cssW: w, cssH: h }; // cssW/cssH for explicit drawImage destination (required for crisp Retina output)
     allLocked = true;
   }
 
@@ -246,12 +250,14 @@ export function createWordmarkDecode(opts = {}) {
       return;
     }
 
-    // FULLY LOCKED + near rest: one cheap drawImage instead of ~33 glyph fills/frame. Only when scale≈1 — scaling a 1x
-    // bake up through the zoom-through would blur it, so during the zoom we fall through to crisp vector drawing.
-    if (allLocked && lockedBitmap && lockedBitmap.fs === fs && (scaleHint == null || scaleHint < 1.5)) {
+    // FULLY LOCKED + near rest: one cheap drawImage instead of ~33 glyph fills/frame. Only when scale≈1 — scaling a
+    // device-res bake up through the zoom-through would blur it, so during the zoom we fall through to crisp vector drawing.
+    // drawImage uses explicit CSS-pixel destination (cssW × cssH) so the device-res baked canvas maps 1:1 → crisp on Retina.
+    const curDpr = Math.min(3, window.devicePixelRatio || 1);
+    if (allLocked && lockedBitmap && lockedBitmap.fs === fs && lockedBitmap.dpr === curDpr && (scaleHint == null || scaleHint < 1.5)) {
       ctx.save();
       ctx.globalAlpha = m;
-      ctx.drawImage(lockedBitmap.canvas, cx - lockedBitmap.ox, cy - lockedBitmap.oy);
+      ctx.drawImage(lockedBitmap.canvas, cx - lockedBitmap.ox, cy - lockedBitmap.oy, lockedBitmap.cssW, lockedBitmap.cssH);
       ctx.restore();
       return;
     }
@@ -276,7 +282,7 @@ export function createWordmarkDecode(opts = {}) {
     }
 
     // both beats fully settled (incl. the slogan) → bake the static wordmark once; subsequent rest frames use the bitmap
-    if (!allLocked && t >= subStart + SUB_DUR) bakeLocked(L, fs);
+    if (!allLocked && t >= subStart + SUB_DUR) bakeLocked(ctx, L, fs);
   }
 
   function drawWordStatic(ctx, lay, cx, cy, fs, isTitle, master) {

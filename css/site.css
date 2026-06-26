@@ -809,9 +809,7 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
    then drop straight into the image-backed content sections. Desktop & wide reduced-motion/no-GSAP keep the full stacked chapters. */
 @media (max-width:860px){
   .cinematic.is-static .chapter:not(.chapter-hero){display:none;}
-  .cinematic.is-static .chapter.chapter-hero{min-height:auto;padding-block:clamp(3.5rem,15vw,6rem);}
-  .cinematic.is-static .chapter.chapter-hero .ch-status,
-  .cinematic.is-static .chapter.chapter-hero .ch-cue{display:none;}   /* no orphan decode-chip / redundant scroll cue — the descent already cues scroll, and the headline flows into "What we do" */
+  .cinematic.is-static .chapter.chapter-hero{display:none;}   /* descent hero is the full landing — drop straight into the content sections */
 }
 
 @media (max-width:560px){

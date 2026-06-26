@@ -410,13 +410,13 @@ function buildStatic(){
   // cards. Reveal ONLY the hero headline, and reveal it CLEANLY — the orbital ARTIX wordmark is the one signature decode (no
   // per-char scramble here). Wide reduced-motion / no-GSAP fallbacks keep the full stacked story (those chapters stay visible >860).
   const heroOnly = mmW.matches;
-  const targets = heroOnly ? chapters.filter(c => c.classList.contains('chapter-hero')) : chapters;
+  const targets = heroOnly ? [] : chapters;   // mobile: chapter-hero hidden by CSS; nothing to observe or decode
   if(mmR.matches || typeof IntersectionObserver === 'undefined'){
     targets.forEach(c => { c._on = true; c.classList.add('is-on'); lockChip(c.querySelector('.ch-status')); });   // instant reveal, no per-char motion
   } else {
     // reveal as each target scrolls into view: the full stack decodes (ICE scramble, mirrors the desktop beats); the lone hero just fades in
     staticIO = new IntersectionObserver((ents) => ents.forEach(en => {
-      if(en.isIntersecting){ const c = en.target; if(!c._on){ c._on = true; c.classList.add('is-on'); if(heroOnly) lockChip(c.querySelector('.ch-status')); else decodeChapter(c); } }
+      if(en.isIntersecting){ const c = en.target; if(!c._on){ c._on = true; c.classList.add('is-on'); decodeChapter(c); } }
     }), { rootMargin: '0px 0px -40% 0px', threshold: 0.01 });
     targets.forEach(c => staticIO.observe(c));
   }
