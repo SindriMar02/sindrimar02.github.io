@@ -7,6 +7,7 @@
 // resize or fights the ScrollTrigger pin. Returns null if WebGL is unavailable (caller then uses createSequence).
 
 import { createWordmarkDecode } from '/js/artix-wordmark-decode.js';   // Treatment-B hero decode (claude-design handoff)
+import { setProgress } from '/js/progress-bus.js';   // publish 'hero' readiness (warm + painted) so the loader holds until the live hero is on screen
 
 const VS = 'attribute vec2 p; varying vec2 vUv; void main(){ vUv=vec2(p.x*0.5+0.5,1.0-(p.y*0.5+0.5)); gl_Position=vec4(p,0.0,1.0); }';
 const FS = [
@@ -99,21 +100,23 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const prefetchCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   const WARM_PRELOAD = 50;   // warm gate checks decode-readiness of these Image objects, not just HTTP cache presence
   let fetched = 0, prefetchDone = false;
-  function prefetchAll(){
-    // Pre-load the opening frames as actual Image objects right now (direct decode, not just HTTP cache).
-    // The warm gate waits for these to be isReady() so the first scroll never fires onto undecoded frames.
-    for(let k = 1; k <= Math.min(WARM_PRELOAD, count); k++) load(k);
+  // WARM SET — load the opening frames as real Image objects (direct decode, not just HTTP cache) IMMEDIATELY on creation, i.e.
+  // WHILE the loader overlay is still up. boot.js gates the overlay's release on the hero being warm + painted (see the 'hero'
+  // publish in frame()), so this heavy preload happens BEHIND the loading screen instead of competing with the wordmark decode that
+  // fires the instant the loader clears. (A module-init prefetch WAS a verified "frames don't load on refresh" cause — but that was
+  // the FULL 356-frame storm starving frame-1; the bounded 50-frame warm set, loaded first, IS the loader's job now.)
+  for(let k = 1; k <= Math.min(WARM_PRELOAD, count); k++) load(k);
+  // REST OF THE SEQUENCE — held back until the entry wordmark decode SETTLES (frame() trips runPrefetchRest), so the ~2.7s decode runs
+  // with zero network/decode contention. An early scroll is still warm-gated (cinematic.js) so the dive only scrubs once cached; the
+  // bulk streams in during the seconds the viewer reads the resting hero. Owner-directed: prefer a longer load over any entry lag.
+  let prefetchStarted = false;
+  function runPrefetchRest(){ if(prefetchStarted) return; prefetchStarted = true;
     let i = 1, inflight = 0;
-    const pump = () => { while(inflight < 12 && i <= count){ const u = srcOf(i++); inflight++;   // 12 in-flight, no priority:low (page is past first-paint, no contention) — fills the cache ~2× faster
+    const pump = () => { while(inflight < 12 && i <= count){ const u = srcOf(i++); inflight++;
         fetch(u, { signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
     pump(); }
-  // Start the whole-sequence prefetch the moment the loader releases (artix:booted) or on window load — both are PAST first paint +
-  // the critical opener frames, so the warm-storm never competes with them (a prefetch at module init was a verified "frames don't
-  // load on refresh" cause). cinematic.js gates the first descent glide on `warm` so the dive only scrubs once these are cached.
-  let prefetchStarted = false;
-  const schedulePrefetch = () => { if(prefetchStarted) return; prefetchStarted = true; prefetchAll(); };
-  if(document.readyState === 'complete') schedulePrefetch();
-  else { window.addEventListener('load', schedulePrefetch, { once: true }); document.addEventListener('artix:booted', schedulePrefetch, { once: true }); }
+  // safety net: if no reveal/settle ever fires (e.g. session-cached skip under reduced motion), still fill the cache shortly after load
+  window.addEventListener('load', () => setTimeout(runPrefetchRest, 4500), { once: true });
 
   // ── ice ARTIX wordmark (its own canvas; warped/composited by the shader) ──
   // Treatment-B instrument decode (claude-design handoff) draws the wordmark+slogan; this file keeps the placing, the resting
@@ -124,14 +127,11 @@ export function createDiveLens({ canvas, dir, count, settings }){
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
   let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
-  // wmc (wordmark canvas) resolution: REDUCED while the scramble churns (the decode is a blurry chromatic churn by design, so
-  // the lower texel density is invisible) → its per-frame full-canvas clearRect + GPU upload + per-glyph raster all shrink ~3×,
-  // which is the dominant cost of the ~2.7s scramble-in (measured 60→28fps during the 28-glyph slogan beat). Restored to full
-  // res the instant the decode settles so the RESTING wordmark stays crisp (it then uploads once and holds). Mirrors the mobile
-  // static path's DECODE_DPR/FULL_DPR (cinematic.js buildMobileWordmark). The wordmark's ON-SCREEN size/placing is unchanged —
-  // the shader samples wmc in normalised UV, so wmc's pixel count only affects sharpness, not geometry.
-  const WM_FULL_DPR = 1.5, WM_DECODE_DPR = 0.65;
-  let wmDecoding = false;   // true between scrambleIn() and the decode settling — fit() holds wmc at WM_DECODE_DPR meanwhile
+  // wmc (wordmark canvas) resolution: FULL DPR at ALL times, including during the scramble-in churn (owner: the decode must stay
+  // crystal-crisp — never down-rezzed). The decode is kept smooth NOT by dropping resolution but by removing contention: the dive
+  // frame prefetch is held back until the decode settles (see runPrefetchRest), so the ~2.7s decode owns the main thread. The shader
+  // samples wmc in normalised UV, so wmc's pixel count only affects sharpness, never geometry/placing.
+  const WM_FULL_DPR = 1.5;
   const onResize = () => { needsFit = true; };
   try { ro = new ResizeObserver(() => { needsFit = true; }); ro.observe(canvas); } catch(e){}
   window.addEventListener('resize', onResize, { passive: true });
@@ -164,15 +164,15 @@ export function createDiveLens({ canvas, dir, count, settings }){
     let resized = false;
     if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); resized = true; }
     if(earthC.width !== w || earthC.height !== h){ earthC.width = w; earthC.height = h; resized = true; }   // earthC = canvas res (FULL quality — must match the story frames so the dive→coast hand-off is seamless, no blurry→sharp snap)
-    const wmDpr = Math.min(window.devicePixelRatio || 1, wmDecoding ? WM_DECODE_DPR : WM_FULL_DPR);   // wordmark canvas: reduced-res while churning, full-res at rest (see WM_*_DPR note)
+    const wmDpr = Math.min(window.devicePixelRatio || 1, WM_FULL_DPR);   // wordmark canvas: FULL res at all times — crisp churn + crisp rest (see WM_FULL_DPR note)
     const ww = Math.max(2, Math.round(r.width * wmDpr)), wh = Math.max(2, Math.round(r.height * wmDpr));
     if(wmc.width !== ww || wmc.height !== wh){ wmc.width = ww; wmc.height = wh; resized = true; }
     return resized;
   }
 
-  let painted = false;
+  let painted = false, heroLast = -1;
   function frame(){
-    if(wmDecoding && wmDecode.settled){ wmDecoding = false; needsFit = true; }   // churn finished → fit() restores wmc to full res this frame (crisp resting wordmark)
+    if(!prefetchStarted && wmDecode.settled) runPrefetchRest();   // entry decode finished → NOW fill the rest of the dive cache (held back so the decode ran contention-free)
     const resized = fit();
     if(resized){ lastWmOp = -1; lastWmScale = -1; }                              // a wmc/earth realloc cleared the wordmark canvas → force one redraw+upload (also re-bakes it crisp after the settle resize)
     if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; } }   // earthC only changes when the frame/blend moves or on resize
@@ -189,6 +189,12 @@ export function createDiveLens({ canvas, dir, count, settings }){
     gl.uniform1f(uT, (performance.now() - t0) / 1000);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if(!painted){ painted = true; canvas.style.opacity = '1'; }                           // first real paint — fade the canvas in over the poster (CSS transition)
+    // HERO READINESS → loader: once the canvas has painted AND the warm set is decoded, the live hero is fully on screen → release the
+    // overlay. Publish a fraction so the loader's meter reflects real preload (painted ⇒ ≥0.4; 1.0 at warm). Stops scanning once warm
+    // (heroLast===1) so there's zero idle cost for the rest of the page's life.
+    if(painted && heroLast < 1){ let r = 0; for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++) if(isReady(frames[k])) r++;
+      const hp = r >= WARM_PRELOAD ? 1 : 0.4 + 0.6 * (r / WARM_PRELOAD);
+      if(hp !== heroLast){ heroLast = hp; try { setProgress('hero', hp); } catch(e){} } }
     if(running) raf = requestAnimationFrame(frame);
   }
   function start(){ if(running) return; running = true; raf = requestAnimationFrame(frame); }
@@ -200,9 +206,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   return {
     setProgress(p){ progress = Math.max(0, Math.min(1, p)); setFrame(progress); if(!running) start(); },
     scrambleIn(){ wmDecode.scrambleIn(performance.now());
-      // hold wmc at reduced res through the churn (the big per-frame saving); skip under reduced-motion — there the decode
-      // resolves instantly and never runs bakeLocked, so `settled` would stay false and wmc would be stuck at reduced res.
-      if(!(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion:reduce)').matches)){ wmDecoding = true; needsFit = true; }
+      setTimeout(runPrefetchRest, 3200);   // decode is ~2.7s; fallback if the settle-trip is missed (e.g. reduced motion never bakes) — fill the rest of the cache anyway
       lastWmOp = -1; lastWmScale = -1; },
     setSub(s){ wmDecode.setSub(s); lastWmOp = -1; lastWmScale = -1; },   // relocalise slogan; force drawWordmark to redraw+re-upload next frame
     redraw(){},
@@ -210,6 +214,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     resume: start,
     get count(){ return count; },
     get warm(){ for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++){ if(!isReady(frames[k])) return false; } return true; },   // true once the first WARM_PRELOAD Image objects are decoded + drawable — stronger than HTTP cache presence (which can silently fail or be incomplete)
+    get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }
