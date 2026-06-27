@@ -9,7 +9,8 @@ import { createDiveLens } from '/js/dive-lens.js';
 import { scramble } from '/js/scramble.js';
 import { createWordmarkDecode } from '/js/artix-wordmark-decode.js';   // SAME hero wordmark decode the desktop dive-lens uses — rendered on a plain 2D canvas for the mobile static hero
 import { createStarfield } from '/js/starfield.js';                    // orbital night sky over the dive hero — alive at rest, fades out as the dive begins
-import { setProgress as busProgress } from '/js/progress-bus.js';
+import { createRadarPulse } from '/js/radar-pulse.js';                 // sonar pings through the baked range rings around Iceland — alive at rest, fades out as the dive begins
+import { setProgress as busProgress, onProgress as busOnProgress } from '/js/progress-bus.js';
 
 const COORD = '64.13°N 21.95°W';                // descent coast fix — Spec v1 §02 (exact). NB: footer/closing use the Akranes HQ fix 64.32°N 22.08°W
 const SPLIT = 0.30;                              // descent owns the first 30% of the scroll (~300vh); story the rest (~700vh)
@@ -32,8 +33,10 @@ let chapters = [], rail, railFill, railNum, skipBtn, activePrev = -1;
 let mmW, mmR, onMM, onBooted, onSkip, onLang, built = false, phaseStory = false, staticIO = null, staticTimers = [];
 let segTargets = [], snapLockT = 0, snapAnim = false, coolUntil = 0, glideRaf = 0, touchY = 0, onSnapInput = null, onSnapKey = null, onTouchStart = null, onTouchMove = null;
 let descentQueued = 0, warmRaf = 0, warmForce = false;   // first descent glide is HELD until the dive frames are cached (dSeq.warm) so the cold-cache scrub never sticks/jumps; the scroll intent is queued + auto-fired on warm
+let offHeroCache = null;   // unsub for the 'hero'→story-prefetch trigger (story warms the instant the dive is fully cached)
 let mobileWm = null;   // mobile/static hero wordmark — the desktop decode module on a 2D canvas (built in buildStaticDescent)
 let stars = null;      // orbital starfield (desktop WebGL hero only; idle-only — fades out as the dive begins)
+let radar = null;      // radar pulse over Iceland's range rings (desktop WebGL hero only; idle-only — fades out as the dive begins)
 
 /* ───────── PHASE 1 · orbital descent ───────── */
 function revealBrand(){
@@ -86,6 +89,7 @@ function renderDescent(dP){
   // choreography is gone — the wordmark lives in the canvas now. We only keep the live telemetry datum + header collapse.
   if(dSeq) dSeq.setProgress(dP);
   if(stars) stars.setProgress(dP);                       // orbital sky fades out as the dive carries past it (gone by dP≈0.045)
+  if(radar) radar.setProgress(dP);                       // radar pulse over Iceland fades out the instant the dive begins (gone by dP≈0.045)
   setLock(dP > 0.05);                                    // datum: ACQUIRING → LOCK
   setTelemetry(dP);                                      // altitude + velocity fall as the camera descends
   // seam prep: fade the bottom gradient out over the last 15% of descent so it matches the story (scrim=0 at seam=0)
@@ -214,11 +218,21 @@ function paint(p){
 function buildSegments(){ const N = chapters.length || 8; segTargets = [0];                 // index 0 = top (p=0); index 1 = ch0 (=SPLIT); … index N = ch(N-1) (=1.0)
   for(let k = 0; k < N; k++) segTargets.push(SPLIT + (k / (N - 1)) * (1 - SPLIT)); }
 const SNAP_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar']);
-// UNIFIED ease = easeInOutSine for ALL glides (descent + chapters). Has zero velocity at both ends (no jerk at start or halt)
-// but non-zero acceleration immediately at t=0 — motion is visible from the first frame (~2.45% at 360ms vs quintic's 0.86%).
-// Same shape for every scroll-start so the trigger delay feels identical whether entering descent or advancing a chapter.
-// Peak velocity 1.57× avg (lower than the old quintic's 1.875×) — well within the frame-decode budget at 3.6s/2.4s.
-const easeSlide = t => -(Math.cos(Math.PI * t) - 1) / 2;
+// UNIFIED ease = cubic-bezier(0.50, 0.22, 0.60, 1.0) — tuned for the owner's "butter-smooth, always comes to a smooth stop" brief.
+// vs the old easeInOutSine it is STRICTLY better at BOTH ends: a more responsive START (5.4% of travel by 360ms vs sine's 2.5% —
+// the motion reads immediately, no dead creep) AND a gentler, JERK-FREE HALT. The "abrupt stop" was sine's tell: sine reaches the
+// target with non-zero end-acceleration, so the camera was still decelerating hard the instant it cut to static = a perceptible
+// snap. This curve flattens into the target (end-velocity 0, vanishing end-accel) so the last ~10% creeps to rest (Δ 0.34→0.05→
+// 0.016% per 1% of time) — it eases onto the exact frame instead of braking onto it. Peak velocity 1.62× avg ≈ sine's 1.57×, so the
+// dive's frame-decode budget is UNCHANGED (no new lag in the Iceland/clouds stretch). One curve for descent + chapters → every
+// transition shares one consistent flow. TUNING KNOB: the 4 control points below (numeric sweep in scratchpad/descent2).
+function cubicBezier(x1, y1, x2, y2){                        // De Casteljau easing: invert x(t)=p by Newton (6 iters, monotonic x), return y(t)
+  const cx = 3*x1, bx = 3*(x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3*y1, by = 3*(y2 - y1) - cy, ay = 1 - cy - by;
+  const fx = t => ((ax*t + bx)*t + cx)*t, fy = t => ((ay*t + by)*t + cy)*t, dfx = t => (3*ax*t + 2*bx)*t + cx;
+  return p => { let t = p; for(let i = 0; i < 6; i++){ const e = fx(t) - p; if(e > -1e-5 && e < 1e-5) break; const d = dfx(t); if(d > -1e-6 && d < 1e-6) break; t -= e / d; } return fy(t); };
+}
+const easeSlide = cubicBezier(0.50, 0.22, 0.60, 1.0);
 function lenisY(){ return (window.__lenis && typeof window.__lenis.scroll === 'number') ? window.__lenis.scroll : (window.scrollY || 0); }
 function scrollProgress(){ if(!st) return 0; return clamp((lenisY() - st.start) / Math.max(1, st.end - st.start), 0, 1); }
 // Own the glide via rAF + scrollTo(immediate): we set the EXACT eased position every frame, which overwrites any wheel/trackpad
@@ -265,7 +279,7 @@ function doGestureAdvance(dir){
   // HOLD the dive until its frames are cached: a cold-cache scrub out-runs the WebP download and the frame-exact draw STICKS, then
   // jumps to the seam. Queue the scroll intent and auto-fire the glide the instant the dive is warm (the orbital hero is the hold UI).
   if(descentMove && dir > 0 && !warmForce && dSeq && dSeq.warm === false){ descentQueued = dir; armWarmFire(); return; }
-  const dur = descentMove ? 3.6 : 2.4;                        // SLOW + smooth: the full dive glides over 3.6s (smootherstep settle); each chapter over 2.4s — slower so the footage between chapters reads
+  const dur = descentMove ? 3.6 : 2.4;                        // SLOW + smooth: the full dive glides over 3.6s (bezier ease → jerk-free stop); each chapter over 2.4s — slower so the footage between chapters reads
   snapAnim = true;
   runGlide(st.start + target * (st.end - st.start), dur, easeSlide);
 }
@@ -310,9 +324,15 @@ function buildAnimated(){
   dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356,
     settings: { ampMul: 0.59, ctr: 0.175, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 } });
   if(dSeq){ dStage.classList.add('is-lens');             // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
-    try { stars = createStarfield({ host: dStage, reduced: mmR.matches }); if(stars) stars.start(); } catch(e){ stars = null; } }   // orbital sky at idle (only over the live WebGL hero)
+    try { stars = createStarfield({ host: dStage, reduced: mmR.matches }); if(stars) stars.start(); } catch(e){ stars = null; }   // orbital sky at idle (only over the live WebGL hero)
+    try { radar = createRadarPulse({ host: dStage }); if(radar) radar.start(); } catch(e){ radar = null; } }   // radar pings over Iceland's range rings at idle (only over the live WebGL hero)
   else { dSeq = createSequence({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356 }); busProgress('hero', 1); }   // no-WebGL fallback: plain scrub, no lens — nothing to warm-gate, so release the loader (the WebGL path self-publishes 'hero')
   sSeq = createSequence({ canvas: sStage.querySelector('.story-canvas'),   dir: '/assets/story-frames/',   count: 480 });
+  // STORY PREFETCH RUNWAY — the dive is the priority load and the loader holds until it's fully cached ('hero' → 1). The INSTANT that
+  // happens, warm the story cache so the 7 chapters are ready before the user scrolls into them; they have the whole 3.6s dive glide +
+  // hero-reading time as runway. (Gating the loader on the story too would over-extend it — the story is scrubbed slowly, not in one fast
+  // sweep like the dive, so streaming it during the runway is smooth.) Self-unsubscribes on first fire; the no-WebGL path fires 'hero'=1 at once.
+  offHeroCache = busOnProgress('hero', (v) => { if(v >= 1 && sSeq && sSeq.prefetch){ sSeq.prefetch(); if(offHeroCache){ offHeroCache(); offHeroCache = null; } } });
   st = ScrollTrigger.create({ trigger: sec, start: 'top top', end: 'bottom bottom', pin: stage, scrub: 0.6, invalidateOnRefresh: true, onUpdate: (self) => paint(self.progress) });
   setupGestureAdvance();                                  // gesture-advance choreography (descent-as-segment + chapter steps) — see doGestureAdvance
   dStage.classList.add('is-on');
@@ -462,6 +482,7 @@ function buildStatic(){
 function teardown(){
   teardownSnap();
   teardownStaticParallax();
+  if(offHeroCache){ offHeroCache(); offHeroCache = null; }   // drop the 'hero'→story-prefetch sub (if the dive never cached before a media-query rebuild)
   try { st && st.kill(); } catch(e){}
   try { dSeq && dSeq.destroy(); } catch(e){}
   try { sSeq && sSeq.destroy(); } catch(e){}
@@ -470,6 +491,7 @@ function teardown(){
   staticTimers.forEach(fn => { try { fn(); } catch(e){} }); staticTimers = [];
   if(mobileWm){ try { mobileWm.destroy(); } catch(e){} mobileWm = null; }
   if(stars){ try { stars.destroy(); } catch(e){} stars = null; }
+  if(radar){ try { radar.destroy(); } catch(e){} radar = null; }
   cancelAnimationFrame(frostRaf); if(frostDisp){ frostDisp.setAttribute('scale', '0'); delete frostDisp._s; }
   if(telAlt) delete telAlt._v; if(telVel) delete telVel._v;
   if(descentScrim){ descentScrim.style.opacity = ''; delete descentScrim._op; }

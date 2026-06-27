@@ -43,16 +43,18 @@ export function createSequence({ canvas, dir, count }){
   // Warm the HTTP cache for the WHOLE sequence in the background (low priority, ≤4 in flight) so a fast scroll never waits on a
   // download — the windowed decode then pulls each frame from cache instantly. (serve.py marks frames cacheable.)
   const prefetchCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-  function prefetchAll(){ let i = 1, inflight = 0; const pump = () => {
+  let prefetchStarted = false;
+  function prefetchAll(){ if(prefetchStarted) return; prefetchStarted = true;             // idempotent — the cinematic triggers this on dive-cached so the story caches during the dive-glide runway; the load+idle path below is only a fallback
+    let i = 1, inflight = 0; const pump = () => {
     while(inflight < 3 && i <= n){ const u = src(i++); inflight++;                       // 3 in-flight (was 4): leave connection headroom for the windowed <img> loads + the live scrub
       fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; pump(); }); } };
     pump(); }
   realSize(); window.addEventListener('resize', size, { passive: true }); preload(1, 12);
-  // start the background prefetch only AFTER the page has loaded + gone idle, so it never competes with initial render/load
+  // FALLBACK trigger: if no external trigger (cinematic's dive-cached) fires, still warm the cache after load + idle so a fast scroll never waits.
   const schedulePrefetch = () => (window.requestIdleCallback || ((fn) => setTimeout(fn, 3000)))(prefetchAll, { timeout: 6000 });
   if(document.readyState === 'complete') schedulePrefetch();
   else window.addEventListener('load', schedulePrefetch, { once: true });
-  return { setProgress, redraw: () => draw(curF),
+  return { setProgress, redraw: () => draw(curF), prefetch: prefetchAll,
     destroy(){ window.removeEventListener('resize', size); if(rafResize) cancelAnimationFrame(rafResize);
       try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}                            // stop the background prefetch pump on teardown (media-query flip) — was an un-abortable leak
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0; },

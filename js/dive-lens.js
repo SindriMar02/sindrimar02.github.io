@@ -172,7 +172,6 @@ export function createDiveLens({ canvas, dir, count, settings }){
 
   let painted = false, heroLast = -1;
   function frame(){
-    if(!prefetchStarted && wmDecode.settled) runPrefetchRest();   // entry decode finished → NOW fill the rest of the dive cache (held back so the decode ran contention-free)
     const resized = fit();
     if(resized){ lastWmOp = -1; lastWmScale = -1; }                              // a wmc/earth realloc cleared the wordmark canvas → force one redraw+upload (also re-bakes it crisp after the settle resize)
     if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; } }   // earthC only changes when the frame/blend moves or on resize
@@ -192,9 +191,16 @@ export function createDiveLens({ canvas, dir, count, settings }){
     // HERO READINESS → loader: once the canvas has painted AND the warm set is decoded, the live hero is fully on screen → release the
     // overlay. Publish a fraction so the loader's meter reflects real preload (painted ⇒ ≥0.4; 1.0 at warm). Stops scanning once warm
     // (heroLast===1) so there's zero idle cost for the rest of the page's life.
-    if(painted && heroLast < 1){ let r = 0; for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++) if(isReady(frames[k])) r++;
-      const hp = r >= WARM_PRELOAD ? 1 : 0.4 + 0.6 * (r / WARM_PRELOAD);
-      if(hp !== heroLast){ heroLast = hp; try { setProgress('hero', hp); } catch(e){} } }
+    // HERO READINESS → loader. The signal now spans the WHOLE dive prefetch so the loader holds until the dive is fully CACHED (not just
+    // the 50-frame warm set): the descent's first scroll is a fast 356-frame scrub, so EVERY frame must be ready before the loader lifts —
+    // no mid-dive streaming stutter. painted ⇒ 0.30; warm set decoded ⇒ 0.60 AND the bulk prefetch STARTS here (during the loader, while
+    // there's zero contention — the wordmark decode only runs after the loader); full dive cached ⇒ 1.0. boot.js's bar follows this, so the
+    // loading time honestly represents the lazy-load completing. (Owner-directed: a longer, honest load beats any in-experience lag.)
+    if(painted && heroLast < 1){ let hp;
+      if(prefetchStarted){ hp = Math.min(1, 0.6 + 0.4 * (fetched / count)); }   // bulk prefetch running: track real cache fill 0.6 → 1.0
+      else { let r = 0; for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++) if(isReady(frames[k])) r++;
+        if(r >= WARM_PRELOAD){ runPrefetchRest(); hp = 0.6; } else hp = 0.3 + 0.3 * (r / WARM_PRELOAD); }   // warm set decoding 0.3 → 0.6, then kick the bulk fill
+      if(hp > heroLast){ heroLast = hp; try { setProgress('hero', hp); } catch(e){} } }
     if(running) raf = requestAnimationFrame(frame);
   }
   function start(){ if(running) return; running = true; raf = requestAnimationFrame(frame); }
@@ -214,6 +220,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     resume: start,
     get count(){ return count; },
     get warm(){ for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++){ if(!isReady(frames[k])) return false; } return true; },   // true once the first WARM_PRELOAD Image objects are decoded + drawable — stronger than HTTP cache presence (which can silently fail or be incomplete)
+    get cached(){ return prefetchDone; },   // true once ALL count frames have been HTTP-prefetched (the whole dive is in cache → the fast scrub never network-stalls). The loader gates on this via the 'hero' signal.
     get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;

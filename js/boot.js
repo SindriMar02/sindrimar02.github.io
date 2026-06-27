@@ -1,8 +1,9 @@
 // LOADER — hold the overlay until the live HERO is actually preloaded + on screen, so the render is THERE the instant the loader
 // lifts (no pop-in) AND the heavy frame preload happens behind the loading screen instead of competing with the entry wordmark decode.
-// Readiness comes from two channels: the hero's LCP assets (fonts + first dive frame) AND a 'hero' progress signal (0..1; 1 = the
-// dive is warm + the WebGL canvas has painted) published by dive-lens / cinematic. Meter reflects real preload, HARD 8s cap (owner OK
-// with a longer load to avoid any lag), min ~600ms, Skip, once-per-session, settles "READY".
+// Readiness comes from two channels: the hero's LCP assets (fonts + first dive frame) AND a 'hero' progress signal (0..1; 1 = the WHOLE
+// dive sequence is HTTP-cached + the WebGL canvas has painted) published by dive-lens. So the loader now holds until the entire dive is
+// ready (not just the warm set) → the descent's fast 356-frame scrub never streams mid-flight. Meter reflects that real preload, HARD 12s
+// cap (owner OK with a longer, honest load to avoid any in-experience lag), min ~600ms, Skip, once-per-session, settles "READY".
 import { onProgress } from '/js/progress-bus.js';
 let raf, offHero;
 export function init(){
@@ -34,6 +35,6 @@ export function init(){
     p += (target - p) * 0.08 + 0.5; const shown = Math.min(100, Math.round(p));
     if(fill) fill.style.transform = 'scaleX(' + (shown / 100) + ')'; if(pct) pct.textContent = (done && shown >= 100 ? 'READY' : Math.min(99, shown) + '%');
     if(shown >= 100 && done){ finish(); return; } raf = requestAnimationFrame(tick); }
-  setTimeout(release, 8000); if(skip) skip.addEventListener('click', release); tick();   // 8s hard cap — the in-page warm-gate still covers any frames still streaming if the network is slow
+  setTimeout(release, 12000); if(skip) skip.addEventListener('click', release); tick();   // 12s hard cap (raised from 8s now the gate waits for the full dive cache) — if the network is slow, the in-page warm-gate + windowed decode still cover any stragglers
 }
 export function cleanup(){ cancelAnimationFrame(raf); if(offHero){ offHero(); offHero = null; } document.documentElement.style.overflow = ''; }
