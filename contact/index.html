@@ -7,13 +7,13 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script>document.documentElement.classList.add('js');try{if(window.top!==window.self){window.top.location=window.self.location;}}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title data-i18n="contact.head.title">ARTIX — Contact</title>
-<meta name="description" data-i18n-attr="content:contact.head.description" content="Reach ARTIX directly — a short request-for-information path for end-users and a separate path for manufacturers and partners.">
+<title data-i18n="contact.head.title">ARTIX | Contact</title>
+<meta name="description" data-i18n-attr="content:contact.head.description" content="Reach ARTIX directly, with a short request-for-information path for end-users and a separate path for manufacturers and partners.">
 <link rel="canonical" href="https://artix.is/contact/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ARTIX">
-<meta property="og:title" data-i18n-attr="content:contact.head.og_title" content="ARTIX — Contact">
-<meta property="og:description" data-i18n-attr="content:contact.head.og_description" content="Reach ARTIX directly — a short request-for-information path for end-users and a separate path for manufacturers and partners.">
+<meta property="og:title" data-i18n-attr="content:contact.head.og_title" content="ARTIX | Contact">
+<meta property="og:description" data-i18n-attr="content:contact.head.og_description" content="Reach ARTIX directly, with a short request-for-information path for end-users and a separate path for manufacturers and partners.">
 <meta property="og:url" content="https://artix.is/contact/">
 <meta property="og:image" content="https://artix.is/assets/og-artix.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -33,7 +33,7 @@
 <a class="skip-link" href="#main" data-i18n="nav.skip_to_content">Skip to content</a>
 <header class="masthead" data-masthead>
   <nav class="mast-pill" aria-label="Primary" data-i18n-attr="aria-label:nav.primary.aria_label">
-    <a class="mast-brand" href="/" aria-label="ARTIX — home" data-i18n-attr="aria-label:nav.brand.aria_label">
+    <a class="mast-brand" href="/" aria-label="ARTIX home" data-i18n-attr="aria-label:nav.brand.aria_label">
       <img class="mast-mark" src="/assets/helm-mark.svg" alt="" width="22" height="28">
       <span class="mast-word">ARTIX</span>
     </a>
@@ -165,7 +165,7 @@
         <p class="footer-role" data-i18n="footer.role">ARTIX is an independent defence and security supplier and integrator. We source equipment from an established manufacturer network and deliver and support it for end-users across Iceland and the North Atlantic.</p>
         <ul class="footer-meta">
           <li>ARTIX ehf.</li>
-          <li data-i18n="footer.meta.ncage">NCAGE <strong>STBZ8</strong> — an identity code in the NATO Codification System, not a clearance.</li>
+          <li data-i18n="footer.meta.ncage">NCAGE <strong>STBZ8</strong> is an identity code in the NATO Codification System, not a clearance.</li>
           <li>Smiðjuvellir 17, 300 Akranes · Faxaflói</li>
           <li><a href="mailto:artix@artix.is">artix@artix.is</a></li>
           <li data-i18n="footer.meta.exhibited">Exhibited at Enforce Tac (Nuremberg) and Milipol (Paris)</li>
@@ -202,7 +202,7 @@ if(intake){
     const T = document.documentElement.lang === 'is'
       ? { subj: 'Beiðni um kynningarfund ARTIX', name: 'Nafn: ', org: 'Fyrirtæki eða stofnun: ', email: 'Netfang: ', req: 'Krafa:' }
       : { subj: 'ARTIX briefing request', name: 'Name: ', org: 'Organisation: ', email: 'Email: ', req: 'Requirement:' };
-    const subj = T.subj + (v('name') ? ' — ' + v('name') : '');
+    const subj = T.subj + (v('name') ? ': ' + v('name') : '');
     const body = [T.name + v('name'), T.org + v('organisation'), T.email + v('email'), '', T.req, v('requirement')].join('\n');
     window.location.href = 'mailto:artix@artix.is?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
   });
