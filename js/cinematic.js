@@ -322,10 +322,12 @@ function buildAnimated(){
   gsap.registerPlugin(ScrollTrigger);
   dCanvas = dStage.querySelector('.descent-canvas');
   dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356,
-    settings: { ampMul: 0.59, ctr: 0.175, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 } });
-  if(dSeq){ dStage.classList.add('is-lens');             // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
-    try { stars = createStarfield({ host: dStage, reduced: mmR.matches }); if(stars) stars.start(); } catch(e){ stars = null; }   // orbital sky at idle (only over the live WebGL hero)
-    try { radar = createRadarPulse({ host: dStage }); if(radar) radar.start(); } catch(e){ radar = null; } }   // radar pings over Iceland's range rings at idle (only over the live WebGL hero)
+    settings: { bgBlurMax: 0.0016, bgSharpEnd: 0.45, wmBlurMax: 0.0030, wmExitStart: 0.08, wmExitEnd: 0.30 } });   // focus-pull (coast hero): soft bg → wordmark pops → racks sharp before the seam; membrane removed
+  if(dSeq){ dStage.classList.add('is-lens'); }            // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
+    // NOTE: starfield + radar pulse DISABLED with the coast-descent swap — both were geometrically tied to the old space-globe hero
+    // (stars in black orbit sky; radar pings locked to frame-0001's baked range rings over Iceland). Over the lighthouse→ship footage
+    // they have no anchor and read as noise. Code kept intact (createStarfield/createRadarPulse imports) for easy restore or a
+    // coast-tuned sonar variant. To restore: re-add the two try/catch start() lines here and the setProgress calls in renderDescent.
   else { dSeq = createSequence({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356 }); busProgress('hero', 1); }   // no-WebGL fallback: plain scrub, no lens — nothing to warm-gate, so release the loader (the WebGL path self-publishes 'hero')
   sSeq = createSequence({ canvas: sStage.querySelector('.story-canvas'),   dir: '/assets/story-frames/',   count: 480 });
   // STORY PREFETCH RUNWAY — the dive is the priority load and the loader holds until it's fully cached ('hero' → 1). The INSTANT that

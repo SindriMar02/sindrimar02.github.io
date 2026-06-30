@@ -10,47 +10,57 @@ import { createWordmarkDecode } from '/js/artix-wordmark-decode.js';   // Treatm
 import { setProgress } from '/js/progress-bus.js';   // publish 'hero' readiness (warm + painted) so the loader holds until the live hero is on screen
 
 const VS = 'attribute vec2 p; varying vec2 vUv; void main(){ vUv=vec2(p.x*0.5+0.5,1.0-(p.y*0.5+0.5)); gl_Position=vec4(p,0.0,1.0); }';
+// FOCUS-PULL composite (replaces the old gravitational-lens / chromatic "reality membrane" — that warp was timed to the space
+// radar→Earth morph and no longer fits the coast→ship footage). The footage sits under a small depth-of-field blur so the ice
+// wordmark pops; the blur racks to ZERO before the seam (the story frames are sharp → no blurry→sharp snap). The wordmark gets
+// its own soft-focus blur only as it dissolves out. Both blurs are a normalised 9-tap tent, isotropic in screen space via uAspect.
 const FS = [
   'precision highp float;',
-  'uniform sampler2D uTex; uniform sampler2D uWM; uniform float uS; uniform float uAspect;',
-  'uniform float uW; uniform float uWobScale; uniform float uWobSpeed; uniform float uTime;',
+  'uniform sampler2D uTex; uniform sampler2D uWM; uniform float uAspect; uniform float uBgBlur; uniform float uWmBlur; uniform float uWmDiss;',
   'varying vec2 vUv;',
+  'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }',
+  'vec3 blur3(vec2 uv, float r){',
+  '  if(r < 0.0008) return texture2D(uTex, uv).rgb;',
+  '  vec2 o = vec2(r, r*uAspect);',
+  '  vec3 s = texture2D(uTex, uv).rgb * 0.25;',
+  '  s += (texture2D(uTex,uv+vec2(o.x,0.0)).rgb + texture2D(uTex,uv-vec2(o.x,0.0)).rgb + texture2D(uTex,uv+vec2(0.0,o.y)).rgb + texture2D(uTex,uv-vec2(0.0,o.y)).rgb) * 0.125;',
+  '  s += (texture2D(uTex,uv+o).rgb + texture2D(uTex,uv-o).rgb + texture2D(uTex,uv+vec2(o.x,-o.y)).rgb + texture2D(uTex,uv+vec2(-o.x,o.y)).rgb) * 0.0625;',
+  '  return s;',
+  '}',
+  'vec4 blur4(vec2 uv, float r){',
+  '  if(r < 0.0008) return texture2D(uWM, uv);',
+  '  vec2 o = vec2(r, r*uAspect);',
+  '  vec4 s = texture2D(uWM, uv) * 0.25;',
+  '  s += (texture2D(uWM,uv+vec2(o.x,0.0)) + texture2D(uWM,uv-vec2(o.x,0.0)) + texture2D(uWM,uv+vec2(0.0,o.y)) + texture2D(uWM,uv-vec2(0.0,o.y))) * 0.125;',
+  '  s += (texture2D(uWM,uv+o) + texture2D(uWM,uv-o) + texture2D(uWM,uv+vec2(o.x,-o.y)) + texture2D(uWM,uv+vec2(-o.x,o.y))) * 0.0625;',
+  '  return s;',
+  '}',
   'void main(){',
-  '  vec2 c = vUv - 0.5;',
-  '  vec2 ca = vec2(c.x*uAspect, c.y);',
-  '  float r = length(ca);',
-  '  float s = uS;',
-  '  float warp = s * 0.62 / (1.0 + 7.0*r*r);',
-  '  float zoom = 1.0 + 0.40 * s;',
-  '  float rr = r * (1.0 - warp) / zoom;',
-  '  vec2 dir = r > 0.0002 ? ca / r : vec2(0.0);',
-  '  vec2 sca = dir * rr;',
-  '  vec2 suv = vec2(sca.x/uAspect, sca.y) + 0.5;',
-  '  float wb = uW * 0.05;',
-  '  vec2 wob = vec2(',
-  '    sin(suv.y*uWobScale + uTime*uWobSpeed) + 0.6*sin(suv.x*uWobScale*0.6 - uTime*uWobSpeed*0.8),',
-  '    cos(suv.x*uWobScale + uTime*uWobSpeed*1.1) + 0.6*sin(suv.y*uWobScale*0.7 + uTime*uWobSpeed*0.9)',
-  '  );',
-  '  suv += wob * wb;',
-  '  float cab = 0.022 * s;',
-  '  vec2 off = dir * cab; off.x /= uAspect;',
-  '  float R = texture2D(uTex, suv + off).r;',
-  '  float G = texture2D(uTex, suv).g;',
-  '  float B = texture2D(uTex, suv - off).b;',
-  '  vec3 earth = vec3(R,G,B);',
-  '  vec2 wmoff = dir * (0.032 * s); wmoff.x /= uAspect;',
-  '  vec4 wR = texture2D(uWM, suv + wmoff);',
-  '  vec4 wG = texture2D(uWM, suv);',
-  '  vec4 wB = texture2D(uWM, suv - wmoff);',
-  '  vec3 wmCol = vec3(wR.r, wG.g, wB.b);',
-  '  float wmA = max(max(wR.a, wG.a), wB.a);',
-  '  vec3 col = mix(earth, wmCol, clamp(wmA,0.0,1.0));',
+  '  vec3 bg = blur3(vUv, uBgBlur);',
+  '  vec4 wm;',
+  '  if(uWmDiss > 0.001){',
+  '    vec2 cellN = vec2(uAspect, 1.0) * 170.0;',          // square fleck cells (~7px); aspect keeps them square in screen space
+  '    vec2 cell  = floor(vUv * cellN);',
+  '    float n  = hash(cell);',                            // per-cell vanish threshold (low n leaves first → staggered scatter)
+  '    float n2 = hash(cell + 17.3);',                     // per-cell horizontal jitter
+  '    vec2 duv = vUv + vec2((n2 - 0.5) * 0.030 * uWmDiss, uWmDiss * (0.045 + 0.13 * n));',   // each fleck rises HARDER + scatters laterally as it flies off into the spindrift
+  '    wm = blur4(duv, uWmBlur);',
+  '    float keep = 1.0 - smoothstep(n - 0.06, n + 0.06, uWmDiss);',   // erode the cell once the dissolve front passes its threshold
+  '    wm.a *= keep;',
+  '    wm.rgb += vec3(0.05, 0.13, 0.20) * wm.a * uWmDiss;',            // icy spark — surviving flecks brighten toward signal-cyan as they fly off
+  '  } else {',
+  '    wm = blur4(vUv, uWmBlur);',
+  '  }',
+  '  vec3 col = mix(bg, wm.rgb, clamp(wm.a, 0.0, 1.0));',
   '  gl_FragColor = vec4(col, 1.0);',
   '}'
 ].join('\n');
 
 export function createDiveLens({ canvas, dir, count, settings }){
-  const cfg = Object.assign({ ampMul: 0.59, ctr: 0.175, wid: 0.064, wobMul: 0.94, wobScale: 7, wobSpeed: 0.3 }, settings || {});
+  // FOCUS-PULL knobs (replaces the membrane ampMul/ctr/wid/wob*): bgBlurMax = resting background softness (uv.x units, ~px/canvasW);
+  // bgSharpEnd = scroll progress where the background has fully racked to sharp; wmExitStart/End = the wordmark dissolve window;
+  // wmBlurMax = soft-focus on the wordmark as it dissolves. All tunable from cinematic.js.
+  const cfg = Object.assign({ bgBlurMax: 0.0016, bgSharpEnd: 0.45, wmBlurMax: 0.0030, wmExitStart: 0.08, wmExitEnd: 0.30 }, settings || {});
   let gl = null;
   try { gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false, powerPreference: 'high-performance' }); } catch(e){}
   if(!gl) return null;
@@ -70,8 +80,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const tex = mkTex(), wmTex = mkTex();
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'uWM'), 1);
-  const uS = gl.getUniformLocation(prog, 'uS'), uA = gl.getUniformLocation(prog, 'uAspect');
-  const uW = gl.getUniformLocation(prog, 'uW'), uWS = gl.getUniformLocation(prog, 'uWobScale'), uWSp = gl.getUniformLocation(prog, 'uWobSpeed'), uT = gl.getUniformLocation(prog, 'uTime');
+  const uA = gl.getUniformLocation(prog, 'uAspect'), uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'), uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'), uWmDiss = gl.getUniformLocation(prog, 'uWmDiss');
 
   // ── self-contained frame loader (windowed decode + eviction; mirrors canvas-seq but draws cover-fit to our earthC) ──
   const earthC = document.createElement('canvas'); const octx = earthC.getContext('2d', { alpha: false });
@@ -126,7 +135,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const wmDecode = createWordmarkDecode({ subGap: 0.8, titleStagger: 220, sub: document.documentElement.lang === 'is' ? 'ÚTVEGAÐ. AFHENT. STUTT.' : 'SOURCED. DELIVERED. SUPPORTED.' });   // 220ms per letter = strict sequential (A→R→T→I→X)
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
-  let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
+  let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, lastWmDrift = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
   // wmc (wordmark canvas) resolution: FULL DPR at ALL times, including during the scramble-in churn (owner: the decode must stay
   // crystal-crisp — never down-rezzed). The decode is kept smooth NOT by dropping resolution but by removing contention: the dive
   // frame prefetch is held back until the decode settles (see runPrefetchRest), so the ~2.7s decode owns the main thread. The shader
@@ -136,22 +145,25 @@ export function createDiveLens({ canvas, dir, count, settings }){
   try { ro = new ResizeObserver(() => { needsFit = true; }); ro.observe(canvas); } catch(e){}
   window.addEventListener('resize', onResize, { passive: true });
 
-  function bump(p){ const d = Math.abs(p - cfg.ctr) / cfg.wid; const s = Math.max(0, 1 - d); return s * s * (3 - 2 * s); }
-  function strength(){ return Math.min(1, bump(progress) * cfg.ampMul); }
-  function drawWordmark(){
-    const z = Math.min(1, Math.max(0, (progress - 0.06) / 0.22));   // wider window + earlier start: longer "hold" before zoom
-    const scale = 1 + Math.pow(z, 4) * 42;                          // z^4 ease-in: barely creeps → then rushes through the lens
-    const op = 1 - Math.min(1, Math.max(0, (z - 0.97) / 0.03));     // KEEP: geometric exit fade in the final sliver
-    // once the decode is fully settled the wordmark only changes when op/scale change (scroll) — skip clear+draw (+upload) at rest
-    if(wmDecode.settled && op === lastWmOp && scale === lastWmScale) return false;
-    lastWmOp = op; lastWmScale = scale;
+  const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function drawWordmark(e){
+    // DISINTEGRATION exit: the wordmark holds crisp, then as the camera pushes toward the ship it shatters into a field of icy flecks
+    // that lift and scatter upward (the per-cell erode/rise/spark is in the shader via uWmDiss). Here we only keep the TEXTURE solid for
+    // the shader to disintegrate (so flecks carry real letter pixels), with a tiny global scale+lift; the master alpha holds ~1 until the
+    // very end then clears the last remnant. No 43× zoom-tear, no chromatic membrane.
+    const scale = 1 + e * 0.05;                                     // subtle push (the scatter is the event)
+    const op = 1 - sstep(0.82, 1.0, e);                            // hold solid through the scatter, fade only the final remnant
+    const drift = -e * wmc.height * 0.018;                         // tiny global lift (the shader does the per-fleck rise)
+    // once the decode is fully settled the wordmark only changes when the exit state moves (scroll) — skip clear+draw (+upload) at rest
+    if(wmDecode.settled && op === lastWmOp && scale === lastWmScale && drift === lastWmDrift) return false;
+    lastWmOp = op; lastWmScale = scale; lastWmDrift = drift;
     wmctx.clearRect(0, 0, wmc.width, wmc.height);
-    if(op <= 0.002) return true;                                    // faded out post-zoom — cleared (no ghost), nothing to draw
+    if(op <= 0.002) return true;                                    // fully scattered + remnant cleared — nothing to draw
     const fs = Math.round(wmc.height * 0.11);                       // KEEP: wordmark size
     wmctx.save();
-    wmctx.translate(wmc.width * 0.5, wmc.height * 0.36);            // KEEP: wordmark placing (origin)
+    wmctx.translate(wmc.width * 0.5, wmc.height * 0.36 + drift);    // KEEP: wordmark placing (origin) + exit lift
     wmctx.scale(scale, scale);
-    wmDecode.draw(wmctx, 0, 0, fs, performance.now(), op, scale);   // Treatment-B decode; op = master alpha (zoom-out fade), scale gates the locked-bitmap cache
+    wmDecode.draw(wmctx, 0, 0, fs, performance.now(), op, scale);   // Treatment-B decode; op = master alpha, scale gates the locked-bitmap cache
     wmctx.restore();
     return true;
   }
@@ -170,24 +182,32 @@ export function createDiveLens({ canvas, dir, count, settings }){
     return resized;
   }
 
-  let painted = false, heroLast = -1;
+  let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1;
   function frame(){
     const resized = fit();
-    if(resized){ lastWmOp = -1; lastWmScale = -1; }                              // a wmc/earth realloc cleared the wordmark canvas → force one redraw+upload (also re-bakes it crisp after the settle resize)
-    if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; } }   // earthC only changes when the frame/blend moves or on resize
+    if(resized){ lastWmOp = -1; lastWmScale = -1; lastWmDrift = -1; }            // a wmc/earth realloc cleared the wordmark canvas → force one redraw+upload (also re-bakes it crisp after the settle resize)
+    let dirty = resized;
+    if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; dirty = true; } }   // earthC only changes when the frame/blend moves or on resize
     if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
-    const wmChanged = drawWordmark();
-    try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
-      if(earthDirty){ earthDirty = false; gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); } } catch(e){}
-    try { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wmTex);
-      if(wmChanged){ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); } } catch(e){}
-    gl.uniform1f(uS, strength());
-    gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));
-    gl.uniform1f(uW, Math.min(1, bump(progress) * cfg.wobMul));
-    gl.uniform1f(uWS, cfg.wobScale); gl.uniform1f(uWSp, cfg.wobSpeed);
-    gl.uniform1f(uT, (performance.now() - t0) / 1000);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    if(!painted){ painted = true; canvas.style.opacity = '1'; }                           // first real paint — fade the canvas in over the poster (CSS transition)
+    const e = sstep(cfg.wmExitStart, cfg.wmExitEnd, progress);                  // wordmark exit progress (0 held → 1 fully scattered)
+    const wmChanged = drawWordmark(e); if(wmChanged) dirty = true;
+    // FOCUS-PULL + DISINTEGRATION amounts (ride scroll, not a centred membrane): bg racks soft→sharp before the seam; the wordmark soft-blurs
+    // and SHATTERS into rising icy flecks as it exits (uWmDiss drives the per-cell erode/rise/spark in the shader)
+    const bgBlur = cfg.bgBlurMax * (1 - sstep(0.10, cfg.bgSharpEnd, progress));
+    const wmBlur = cfg.wmBlurMax * sstep(cfg.wmExitStart + 0.06, cfg.wmExitEnd, progress);
+    const wmDiss = e;
+    if(bgBlur !== lastBgBlur || wmBlur !== lastWmBlur || wmDiss !== lastWmDiss) dirty = true;
+    if(dirty || !painted){                                                       // idle-skip: at rest (no scroll, decode settled) nothing changes → no GPU draw (was: redraw every rAF for the now-removed wobble)
+      try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+        if(earthDirty){ earthDirty = false; gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); } } catch(e){}
+      try { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wmTex);
+        if(wmChanged){ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); } } catch(e){}
+      gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));
+      gl.uniform1f(uBgBlur, bgBlur); gl.uniform1f(uWmBlur, wmBlur); gl.uniform1f(uWmDiss, wmDiss);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      lastBgBlur = bgBlur; lastWmBlur = wmBlur; lastWmDiss = wmDiss;
+      if(!painted){ painted = true; canvas.style.opacity = '1'; }                         // first real paint — fade the canvas in over the poster (CSS transition)
+    }
     // HERO READINESS → loader: once the canvas has painted AND the warm set is decoded, the live hero is fully on screen → release the
     // overlay. Publish a fraction so the loader's meter reflects real preload (painted ⇒ ≥0.4; 1.0 at warm). Stops scanning once warm
     // (heroLast===1) so there's zero idle cost for the rest of the page's life.
