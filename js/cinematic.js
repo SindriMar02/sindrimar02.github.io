@@ -276,21 +276,24 @@ function doGestureAdvance(dir){
   else { for(let i = segTargets.length - 1; i >= 0; i--){ if(segTargets[i] < p - 0.012){ target = segTargets[i]; break; } } }
   if(target == null) return;                                  // already at the final stop in that direction
   const descentMove = (dir > 0 && p < SPLIT - 0.01 && target >= SPLIT - 0.01) || (dir < 0 && target < 0.01);
-  // HOLD the dive until its frames are cached: a cold-cache scrub out-runs the WebP download and the frame-exact draw STICKS, then
-  // jumps to the seam. Queue the scroll intent and auto-fire the glide the instant the dive is warm (the orbital hero is the hold UI).
-  if(descentMove && dir > 0 && !warmForce && dSeq && dSeq.warm === false){ descentQueued = dir; armWarmFire(); return; }
+  // HOLD the first descent glide until the dive is FULLY CACHED (dSeq.cached, not just warm-50): the loader now lifts EARLY (at warm) so
+  // the site is usable fast, and the rest of the dive streams in the background — so the glide itself is what must wait for the full cache,
+  // else the fast 356-frame scrub out-runs the download and the frame-exact draw STICKS. The resting hero (+ working nav) is the hold UI;
+  // the scroll intent is queued and auto-fires the instant the dive is cached. (On a normal connection the cache finishes during the few
+  // seconds the viewer reads the hero, so there's no perceptible hold; on a slow one it waits behind the hero, then an 8s fallback frees it.)
+  if(descentMove && dir > 0 && !warmForce && dSeq && dSeq.cached === false){ descentQueued = dir; armWarmFire(); return; }
   const dur = descentMove ? 3.6 : 2.4;                        // SLOW + smooth: the full dive glides over 3.6s (bezier ease → jerk-free stop); each chapter over 2.4s — slower so the footage between chapters reads
   snapAnim = true;
   runGlide(st.start + target * (st.end - st.start), dur, easeSlide);
 }
-// poll dive readiness; once the frames are cached (or a 6s fallback), fire the queued descent glide so it scrubs smoothly from the start
+// poll dive readiness; once the frames are fully cached (or an 8s fallback), fire the queued descent glide so it scrubs smoothly from the start
 function armWarmFire(){
   if(warmRaf) return;                                         // already waiting
   const t0 = performance.now();
   const tick = () => {
-    if(dSeq && dSeq.warm === false && performance.now() - t0 < 6000){ warmRaf = requestAnimationFrame(tick); return; }
+    if(dSeq && dSeq.cached === false && performance.now() - t0 < 8000){ warmRaf = requestAnimationFrame(tick); return; }
     warmRaf = 0;
-    if(performance.now() - t0 >= 6000) warmForce = true;      // don't hang forever on a stalled fetch — let it run (load()'s retry covers stragglers)
+    if(performance.now() - t0 >= 8000) warmForce = true;      // don't hang forever on a stalled fetch — let it run (load()'s retry + the forward-decode window cover stragglers)
     const d = descentQueued; descentQueued = 0;
     if(d && !snapAnim) doGestureAdvance(d);
   };
