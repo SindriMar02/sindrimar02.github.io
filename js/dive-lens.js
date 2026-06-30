@@ -27,12 +27,11 @@ const FS = [
   '  s += (texture2D(uTex,uv+o).rgb + texture2D(uTex,uv-o).rgb + texture2D(uTex,uv+vec2(o.x,-o.y)).rgb + texture2D(uTex,uv+vec2(-o.x,o.y)).rgb) * 0.0625;',
   '  return s;',
   '}',
-  'vec4 blur4(vec2 uv, float r){',
+  'vec4 blur4(vec2 uv, float r){',                              // 5-tap cross (was 9-tap diamond) — cuts wordmark-blur fetches 44%, concentrated in the same exit window that now also carries the disintegration math
   '  if(r < 0.0008) return texture2D(uWM, uv);',
   '  vec2 o = vec2(r, r*uAspect);',
-  '  vec4 s = texture2D(uWM, uv) * 0.25;',
-  '  s += (texture2D(uWM,uv+vec2(o.x,0.0)) + texture2D(uWM,uv-vec2(o.x,0.0)) + texture2D(uWM,uv+vec2(0.0,o.y)) + texture2D(uWM,uv-vec2(0.0,o.y))) * 0.125;',
-  '  s += (texture2D(uWM,uv+o) + texture2D(uWM,uv-o) + texture2D(uWM,uv+vec2(o.x,-o.y)) + texture2D(uWM,uv+vec2(-o.x,o.y))) * 0.0625;',
+  '  vec4 s = texture2D(uWM, uv) * 0.4;',
+  '  s += (texture2D(uWM,uv+vec2(o.x,0.0)) + texture2D(uWM,uv-vec2(o.x,0.0)) + texture2D(uWM,uv+vec2(0.0,o.y)) + texture2D(uWM,uv-vec2(0.0,o.y))) * 0.15;',
   '  return s;',
   '}',
   'void main(){',
@@ -90,7 +89,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const frames = new Array(count);
   const tries = new Uint8Array(count);   // bounded per-frame retry counter — recover a transient WebP fetch failure instead of staying blank forever
   const srcOf = (i) => dir + 'frame-' + ('000' + i).slice(-4) + '.webp';
-  let curF = 1, lastCenter = -1;
+  let curF = 1, lastCenter = -1, evictTick = 0;
   const isReady = (im) => !!(im && im.complete && im.naturalWidth > 0);
   function load(i){ if(i < 1 || i > count || frames[i-1]) return;
     const im = new Image(); im.decoding = 'async';
@@ -99,8 +98,9 @@ export function createDiveLens({ canvas, dir, count, settings }){
     im.src = srcOf(i); frames[i-1] = im; if(im.decode) im.decode().catch(() => {}); }
   function drop(im){ if(im){ im.onerror = null; im.src = ''; } }   // null onerror BEFORE blanking src so the abort doesn't trip the retry
   function setFrame(p){ const f = 1 + Math.max(0, Math.min(1, p)) * (count - 1); curF = f; const c = Math.round(f);
-    if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 48; i++) load(i);   // wide FORWARD-biased window: 48 frames ≈ 310ms lead at peak velocity — enough headroom for a cache-miss network round-trip
-      for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 60){ drop(im); frames[i-1] = undefined; } } } }
+    if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 72; i++) load(i);   // wide FORWARD-biased window: 72 frames lead (was 48) — re-tuned for the native-1920 frames' heavier decode cost so the bezier glide's peak velocity never out-runs decode
+      if(++evictTick >= 4){ evictTick = 0;                                                // throttle the O(count) eviction scan to every 4th center-change (was every change) — eviction doesn't need rAF precision, and the fast glide changes center nearly every frame
+        for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 96){ drop(im); frames[i-1] = undefined; } } } } }
   function coverDraw(){ const cw = earthC.width, ch = earthC.height; if(!cw) return false;
     const lo = Math.max(1, Math.min(count, Math.floor(curF))), hi = Math.min(count, lo + 1), frac = curF - lo;
     const a = frames[lo-1]; if(!isReady(a)){ load(lo); return false; }                    // FRAME-EXACT: hold the last drawn frame until this one is ready (no substitute frame → no halt-snap)
