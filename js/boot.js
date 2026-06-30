@@ -22,7 +22,9 @@ export function init(){
   const decode = (src) => new Promise(r => { const im = new Image(); im.onload = im.onerror = () => r(); im.src = src; });
   let assetsOK = false;
   Promise.all([ document.fonts ? document.fonts.ready.catch(() => {}) : Promise.resolve(), decode('/assets/dive-frames/frame-0001.webp') ]).then(() => { assetsOK = true; maybeRelease(); });
-  for(let i = 1; i <= 12; i++) decode('/assets/dive-frames/frame-' + ('000' + i).slice(-4) + '.webp');   // warm the dive opener (covers the mobile/no-WebGL paths too)
+  // NOTE: frames 2-12 are NOT separately warmed here — dive-lens.js's own bounded-concurrency warm set (frames 1-50) already covers
+  // them with its own retry/stall-watchdog logic; a second independent Image+decode() per frame here was pure duplicate decode work,
+  // stacking on the exact frames most contended during cold load (owner: "sometimes images don't load on first open").
   function finish(){ cancelAnimationFrame(raf); if(offHero){ offHero(); offHero = null; } document.documentElement.style.overflow = ''; sessionStorage.setItem('artix-booted', '1'); overlay.classList.add('is-done'); announce(); setTimeout(() => overlay.remove(), 700); }
   function release(){ done = true; }
   let minTimer = 0;

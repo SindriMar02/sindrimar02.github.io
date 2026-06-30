@@ -70,19 +70,22 @@ export function createDiveLens({ canvas, dir, count, settings }){
 
   function sh(t, src){ const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
     if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error('[dive-lens]', gl.getShaderInfoLog(s)); return s; }
-  const prog = gl.createProgram();
-  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-  gl.linkProgram(prog); gl.useProgram(prog);
-  const quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   function mkTex(){ const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); return t; }
-  const tex = mkTex(), wmTex = mkTex();
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-  gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'uWM'), 1);
-  const uA = gl.getUniformLocation(prog, 'uAspect'), uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'), uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'), uWmDiss = gl.getUniformLocation(prog, 'uWmDiss');
+  let prog, quad, loc, tex, wmTex, uA, uBgBlur, uWmBlur, uWmDiss;
+  function setupGL(){                                         // (re)create every GL resource — called once below AND again on webglcontextrestored
+    prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(prog); gl.useProgram(prog);
+    quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    tex = mkTex(); wmTex = mkTex();
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'uWM'), 1);
+    uA = gl.getUniformLocation(prog, 'uAspect'); uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'); uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'); uWmDiss = gl.getUniformLocation(prog, 'uWmDiss'); }
+  setupGL();
 
   // ── self-contained frame loader (windowed decode + eviction; mirrors canvas-seq but draws cover-fit to our earthC) ──
   const earthC = document.createElement('canvas'); const octx = earthC.getContext('2d', { alpha: false });
@@ -91,19 +94,39 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const srcOf = (i) => dir + 'frame-' + ('000' + i).slice(-4) + '.webp';
   let curF = 1, lastCenter = -1, evictTick = 0;
   const isReady = (im) => !!(im && im.complete && im.naturalWidth > 0);
-  function load(i){ if(i < 1 || i > count || frames[i-1]) return;
-    const im = new Image(); im.decoding = 'async';
-    im.onerror = () => { if(frames[i-1] !== im) return; frames[i-1] = undefined;        // free the slot (was: a failed/aborted request stayed in the array forever → permanent black / frozen frame)
-      if(tries[i-1] < 4){ tries[i-1]++; setTimeout(() => { if(!frames[i-1]) load(i); }, 300 * tries[i-1]); } };   // capped backoff retry so a transient miss self-heals
+  // CONCURRENCY GATE — lives INSIDE load() itself (not bolted onto one caller) so EVERY path that wants a frame — the cold-start warm
+  // set, setFrame()'s forward lookahead window, AND coverDraw()'s on-demand fetch — shares one budget. (A prior version of this fix
+  // only throttled the warm-set's own loop, but setFrame(0) ALSO fires a 1-73 frame window directly and unconditionally on init,
+  // completely bypassing that external throttle — the real burst was never actually reduced. Centralizing it here is the only place
+  // that can't be raced around.) Speculative callers (warm set, lookahead window) queue past the cap; coverDraw's `prioritize=true`
+  // bypasses it outright — the frame actively blocking the visible render must never wait behind a queue of frames nobody's looking at.
+  let inflightLoads = 0; const MAX_INFLIGHT = 8; const pendingQueue = [];
+  function startLoad(i, onSettle){
+    const im = new Image(); im.decoding = 'async'; let settled = false;
+    const done = () => { if(settled) return; settled = true; clearTimeout(stall); onSettle(); };
+    const stall = setTimeout(() => {                                                    // STALL WATCHDOG — a request that neither loads nor errors (a silent network drop, not a clean failure) would otherwise hang this slot forever; force a fresh retry
+      if(frames[i-1] !== im || settled) return; frames[i-1] = undefined;
+      if(tries[i-1] < 4){ tries[i-1]++; startLoad(i, onSettle); } else done(); }, 6000);
+    im.onload = done;
+    im.onerror = () => { if(frames[i-1] !== im) return; frames[i-1] = undefined; clearTimeout(stall);  // free the slot (was: a failed/aborted request stayed in the array forever → permanent black / frozen frame)
+      if(tries[i-1] < 4){ tries[i-1]++; setTimeout(() => { if(!frames[i-1]) startLoad(i, onSettle); }, 300 * tries[i-1]); }   // capped backoff retry so a transient miss self-heals
+      else done(); };
     im.src = srcOf(i); frames[i-1] = im; if(im.decode) im.decode().catch(() => {}); }
+  function drainQueue(){ while(inflightLoads < MAX_INFLIGHT && pendingQueue.length){ const job = pendingQueue.shift();
+      if(frames[job.i - 1]){ if(job.onDone) job.onDone(); continue; }                    // loaded by another path while queued
+      inflightLoads++; startLoad(job.i, () => { inflightLoads--; if(job.onDone) job.onDone(); drainQueue(); }); } }
+  function load(i, onDone, prioritize){ if(i < 1 || i > count){ if(onDone) onDone(); return; }
+    if(frames[i-1]){ if(onDone) onDone(); return; }
+    if(prioritize || inflightLoads < MAX_INFLIGHT){ inflightLoads++; startLoad(i, () => { inflightLoads--; if(onDone) onDone(); drainQueue(); }); }
+    else { pendingQueue.push({ i, onDone }); } }
   function drop(im){ if(im){ im.onerror = null; im.src = ''; } }   // null onerror BEFORE blanking src so the abort doesn't trip the retry
   function setFrame(p){ const f = 1 + Math.max(0, Math.min(1, p)) * (count - 1); curF = f; const c = Math.round(f);
-    if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 72; i++) load(i);   // wide FORWARD-biased window: 72 frames lead (was 48) — re-tuned for the native-1920 frames' heavier decode cost so the bezier glide's peak velocity never out-runs decode
+    if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 72; i++) load(i);   // wide FORWARD-biased window: 72 frames lead (was 48) — re-tuned for the native-1920 frames' heavier decode cost so the bezier glide's peak velocity never out-runs decode; gated by the shared concurrency budget above, NOT unconditional
       if(++evictTick >= 4){ evictTick = 0;                                                // throttle the O(count) eviction scan to every 4th center-change (was every change) — eviction doesn't need rAF precision, and the fast glide changes center nearly every frame
         for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 96){ drop(im); frames[i-1] = undefined; } } } } }
   function coverDraw(){ const cw = earthC.width, ch = earthC.height; if(!cw) return false;
     const lo = Math.max(1, Math.min(count, Math.floor(curF))), hi = Math.min(count, lo + 1), frac = curF - lo;
-    const a = frames[lo-1]; if(!isReady(a)){ load(lo); return false; }                    // FRAME-EXACT: hold the last drawn frame until this one is ready (no substitute frame → no halt-snap)
+    const a = frames[lo-1]; if(!isReady(a)){ load(lo, undefined, true); return false; }   // FRAME-EXACT: hold the last drawn frame until this one is ready (no substitute frame → no halt-snap). PRIORITIZED — this frame is blocking the visible render right now, it must never wait behind speculative lookahead
     const cover = (im) => { const ir = im.naturalWidth / im.naturalHeight, cr = cw / ch; let w, h;
       if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } octx.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h); };
     octx.globalAlpha = 1; cover(a);
@@ -117,6 +140,10 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // publish in frame()), so this heavy preload happens BEHIND the loading screen instead of competing with the wordmark decode that
   // fires the instant the loader clears. (A module-init prefetch WAS a verified "frames don't load on refresh" cause — but that was
   // the FULL 356-frame storm starving frame-1; the bounded 50-frame warm set, loaded first, IS the loader's job now.)
+  // BOUNDED CONCURRENCY (owner: "sometimes images don't load on first open") — requesting all 50 at once was a thundering herd on a
+  // cold connection/cold CPU: 50 simultaneous network requests + 50 simultaneous WebP decodes contending with each other AND the
+  // page's other first-load work (fonts, JS modules, CSS) — exactly the kind of contention that drops or stalls a request on a
+  // slow/flaky link. These 50 calls just feed the shared MAX_INFLIGHT gate above (frame-0001 first in line, the rest queue behind it).
   for(let k = 1; k <= Math.min(WARM_PRELOAD, count); k++) load(k);
   // REST OF THE SEQUENCE — held back until the entry wordmark decode SETTLES (frame() trips runPrefetchRest), so the ~2.7s decode runs
   // with zero network/decode contention. An early scroll is still warm-gated (cinematic.js) so the dive only scrubs once cached; the
@@ -230,6 +257,15 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function stop(){ running = false; cancelAnimationFrame(raf); }
   // GPU dropped the WebGL context: fall back to the poster (canvas transparent) instead of a permanent black canvas, and stop the loop
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); painted = false; lastDrawnF = -1; earthDirty = false; canvas.style.opacity = '0'; stop(); }, false);
+  // RESTORE (owner: "sometimes the video just disappears and background is black") — preventDefault() above IS what tells the browser to
+  // actually attempt restoration (GPU resets/driver hiccups/too many contexts piling up across refreshes are the common real-world
+  // triggers), but nothing was ever resuming afterward: the old program/buffers/textures were destroyed with the lost context and the
+  // render loop had been stop()'d, so even a successful browser-side restore left the page permanently black until a manual reload.
+  // earthC (the 2D source canvas) and wmc (the wordmark canvas) are untouched by a WebGL context loss — only the GL-side resources need
+  // recreating — so this just rebuilds the program/buffers/textures, forces one full re-upload of the already-decoded content, and
+  // resumes the loop. No re-fetch, no re-decode, no visible re-scramble.
+  canvas.addEventListener('webglcontextrestored', () => {
+    setupGL(); earthDirty = true; lastWmOp = -1; lastWmScale = -1; lastWmDrift = -1; needsFit = true; start(); }, false);
   setFrame(0); start();
 
   return {

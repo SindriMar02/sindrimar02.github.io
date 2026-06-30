@@ -4,6 +4,13 @@
 // light. (Draw gates on onload, not decode(), so it still renders when a tab is backgrounded.) Generic/unbranded frames only.
 export function createSequence({ canvas, dir, count }){
   const ctx = canvas.getContext('2d', { alpha: false });   // opaque: frames cover-fill, so skip per-frame alpha compositing
+  // STAY HIDDEN UNTIL PAINTED (owner: "sometimes the video just disappears and background is black") — an {alpha:false} 2D context
+  // renders OPAQUE BLACK by spec the instant its backing store is sized, before anything is ever drawImage'd into it. This module is
+  // also dive-lens's no-WebGL FALLBACK for the descent hero — if WebGL context creation fails (GPU pressure, driver hiccup, common
+  // after repeated refreshes pile up contexts) cinematic.js falls back here, and this canvas was left at its CSS default opacity:1
+  // with nothing drawn — solid black until the first frame loads, with no safety net. Mirror dive-lens.js's pattern: hold transparent
+  // (the CSS poster behind shows through) until the first real frame paints, then fade in.
+  canvas.style.opacity = '0'; canvas.style.transition = 'opacity .3s ease'; let painted = false;
   const n = count;
   const src = (i) => dir + 'frame-' + ('000' + i).slice(-4) + '.webp';
   const frames = new Array(n);
@@ -33,7 +40,8 @@ export function createSequence({ canvas, dir, count }){
     const lo = Math.max(1, Math.min(n, Math.floor(f))), hi = Math.min(n, lo + 1), frac = f - lo;
     const a = frames[lo-1]; if(!isReady(a)){ load(lo); return; }       // FRAME-EXACT: hold the last good frame until this one is loaded (no substitute frame)
     ctx.globalAlpha = 1; cover(a);                                    // opaque cover-fill overwrites all → no clearRect needed
-    const b = frames[hi-1]; if(frac > 0 && isReady(b)){ ctx.globalAlpha = frac; cover(b); ctx.globalAlpha = 1; } }
+    const b = frames[hi-1]; if(frac > 0 && isReady(b)){ ctx.globalAlpha = frac; cover(b); ctx.globalAlpha = 1; }
+    if(!painted){ painted = true; canvas.style.opacity = '1'; } }      // first real content drawn — reveal (was: visible+black from creation until this point)
   function preload(center, radius){ for(let i = center - radius; i <= center + radius; i++) load(i); }
   function evict(center, keep){ for(let i = 1; i <= n; i++){ const im = frames[i-1];
     if(im && Math.abs(i - center) > keep){ drop(im); frames[i-1] = undefined; } } }
