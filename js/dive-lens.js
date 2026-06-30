@@ -37,6 +37,9 @@ const FS = [
   '}',
   'void main(){',
   '  vec3 bg = blur3(vUv, uBgBlur);',
+  '  vec2 sd = vUv - vec2(0.5, 0.39); sd.x *= 0.62;',                            // localized scrim behind the wordmark — gentle darkening for legibility (replaces the bg blur; the rest of the frame stays 100% sharp)
+  '  float scrim = (1.0 - smoothstep(0.0, 0.40, length(sd))) * (1.0 - uWmDiss) * 0.40;',   // fades out as the wordmark disintegrates so the scene reads clean once the title is gone
+  '  bg *= (1.0 - scrim);',
   '  vec4 wm;',
   '  if(uWmDiss > 0.001){',
   '    vec2 cellN = vec2(uAspect, 1.0) * 170.0;',          // square fleck cells (~7px); aspect keeps them square in screen space

@@ -322,7 +322,7 @@ function buildAnimated(){
   gsap.registerPlugin(ScrollTrigger);
   dCanvas = dStage.querySelector('.descent-canvas');
   dSeq = createDiveLens({ canvas: dCanvas, dir: '/assets/dive-frames/', count: 356,
-    settings: { bgBlurMax: 0.0016, bgSharpEnd: 0.45, wmBlurMax: 0.0030, wmExitStart: 0.08, wmExitEnd: 0.30 } });   // focus-pull (coast hero): soft bg → wordmark pops → racks sharp before the seam; membrane removed
+    settings: { bgBlurMax: 0, bgSharpEnd: 0.45, wmBlurMax: 0.0022, wmExitStart: 0.08, wmExitEnd: 0.30 } });   // bgBlurMax:0 → background ALWAYS sharp (the rest-blur read as low quality). Wordmark legibility now comes from a localized scrim in the shader, NOT blur. wmBlur stays only on the dissolving flecks during exit
   if(dSeq){ dStage.classList.add('is-lens'); }            // canvas owns the wordmark now — hide the legacy DOM brand/coord/shatter
     // NOTE: starfield + radar pulse DISABLED with the coast-descent swap — both were geometrically tied to the old space-globe hero
     // (stars in black orbit sky; radar pings locked to frame-0001's baked range rings over Iceland). Over the lighthouse→ship footage
