@@ -143,7 +143,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // crystal-crisp — never down-rezzed). The decode is kept smooth NOT by dropping resolution but by removing contention: the dive
   // frame prefetch is held back until the decode settles (see runPrefetchRest), so the ~2.7s decode owns the main thread. The shader
   // samples wmc in normalised UV, so wmc's pixel count only affects sharpness, never geometry/placing.
-  const WM_FULL_DPR = 1.5;
+  const WM_FULL_DPR = 2;   // wordmark renders at native retina (was 1.5 → text was sub-native + browser-upscaled = blurry on hi-DPI desktops)
   const onResize = () => { needsFit = true; };
   try { ro = new ResizeObserver(() => { needsFit = true; }); ro.observe(canvas); } catch(e){}
   window.addEventListener('resize', onResize, { passive: true });
@@ -174,7 +174,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function fit(){
     if(!needsFit) return false; needsFit = false;                  // only re-measure on a real resize (ResizeObserver) — no getBoundingClientRect reflow every frame
     const r = canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);   // render at native retina (was 1.5 → hero was sub-native + browser-upscaled = soft on hi-DPI desktops)
     const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
     let resized = false;
     if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); resized = true; }

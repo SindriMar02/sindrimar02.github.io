@@ -9,9 +9,10 @@ export function createSequence({ canvas, dir, count }){
   const frames = new Array(n);
   const tries = new Uint8Array(n);   // bounded per-frame retry counter (symptom A: recover a transient WebP fetch failure instead of staying blank forever)
   const isReady = (im) => !!(im && im.complete && im.naturalWidth > 0);
-  // Frames are ~1600–1920px; a DPR-2 backing store oversamples beyond the source (no real sharpness gain) and ~doubles the
-  // pixels drawn + GPU memory every frame. Cap at 1.5 — still ≥ source res, much lighter to draw → smoother scrub.
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  // Cap at 2 (native retina). The 1.5 cap WAS chosen as "lighter to draw" but it renders the canvas BELOW the device's
+  // physical pixels, so the browser then upscales the finished canvas → visibly soft/blurry on hi-DPI desktops (owner complaint).
+  // Rendering at the real DPR (one high-quality drawImage upscale of the source, mapped 1:1 to screen) reads far sharper.
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   let cw = 0, ch = 0, curF = 1, rafResize = 0;
   function realSize(){ const r = canvas.getBoundingClientRect();
     if(Math.round(r.width) === cw && Math.round(r.height) === ch) return;
