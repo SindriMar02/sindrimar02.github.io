@@ -336,7 +336,6 @@ export function createDiveLens({ canvas, dir, count, settings }){
     get warm(){ for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++){ if(!isReady(frames[k])) return false; } return true; },   // true once the first WARM_PRELOAD Image objects are decoded + drawable — stronger than HTTP cache presence (which can silently fail or be incomplete)
     get cached(){ return prefetchDone; },   // true once ALL count frames have been HTTP-prefetched (the whole dive is in cache → the fast scrub never network-stalls). The loader gates on this via the 'hero' signal.
     get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
-    get wmSettled(){ return wmDecode.settled; },   // true once the wordmark's entrance churn has locked + baked to its cheap drawImage path (~2.3s after scrambleIn). cinematic.js's first-glide hold also waits on this — releasing into the wordmark-exit window WHILE still mid-churn forces the expensive per-glyph render path on every frame of that window (owner-reported stutter)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }
