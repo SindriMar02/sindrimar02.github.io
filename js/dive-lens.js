@@ -4,7 +4,12 @@
 // colour-split on its edges) and zooms through the camera until it exits the frame. Drop-in for the descent stage —
 // createDiveLens({canvas, dir, count, settings}) mirrors canvas-seq's { setProgress, redraw, destroy, count } plus
 // scrambleIn()/pause()/resume(). Self-contained frame loader (windowed decode + cover-fit) so it never dispatches a
-// resize or fights the ScrollTrigger pin. Returns null if WebGL is unavailable (caller then uses createSequence).
+// resize or fights the ScrollTrigger pin.
+//
+// TWO RENDER BACKENDS, one everything-else: Chrome/Firefox/Edge composite through the WebGL shader; Safari (and any
+// browser where WebGL creation fails) composites through a pixel-faithful 2D-canvas port of the same effects — see the
+// "2D COMPOSITOR" section for the full why. Returns null only if BOTH context types are unavailable (caller then uses
+// createSequence).
 
 import { createWordmarkDecode } from '/js/artix-wordmark-decode.js';   // Treatment-B hero decode (claude-design handoff)
 import { setProgress } from '/js/progress-bus.js';   // publish 'hero' readiness (warm + painted) so the loader holds until the live hero is on screen
@@ -72,7 +77,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // bgSharpEnd = scroll progress where the background has fully racked to sharp; wmExitStart/End = the wordmark dissolve window;
   // wmBlurMax = soft-focus on the wordmark as it dissolves. All tunable from cinematic.js.
   const cfg = Object.assign({ bgBlurMax: 0.0016, bgSharpEnd: 0.45, wmBlurMax: 0.0030, wmExitStart: 0.08, wmExitEnd: 0.30 }, settings || {});
-  let gl = null;
+  // ── BACKEND SELECTION — WebGL everywhere EXCEPT Safari/WebKit; the 2D compositor there (and as the no-WebGL fallback) ──
   // desynchronized:true — THE fix for the "first scroll (descent) isn't smooth, every scroll after (story) is" report ON CHROME. Root cause
   // found by live Chrome profiling (Long-Animation-Frames API + per-frame timing, tab kept foreground so rAF ran at 60fps): the descent glide
   // ran at 33ms/frame (30fps) while the identically-sized, identically-scrolled STORY canvas ran at 16.7ms (60fps). The ONLY difference is
@@ -82,22 +87,31 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // Zero visual change (it only affects present latency, not pixels). It was NOT: decode-starvation (0 holds), texture upload (texSubImage2D
   // ~0ms), fragment shader (~0ms), fill-rate (DPR-1 didn't help), MSAA, or blend/backdrop overlays — all ruled out by measurement.
   //
-  // SAFARI IS DIFFERENT — a later report ("smooth in Chrome, glitches every time in Safari") sent us back to research these same flags
-  // specifically for WebKit. Both are inert-or-harmful there, never helpful: `desynchronized` has ZERO WebKit support for the WebGL context
-  // path (caniuse: unsupported on every Safari/iOS-Safari version — silently ignored, not harmful, just dead weight); `powerPreference:
-  // 'high-performance'` is a proven WebKit no-op on macOS (WebKit bug 202834, closed WONTFIX — ANGLE never calls CGLSetVirtualScreen, so the
-  // GPU never actually switches) and has a separate WebKit regression on iOS 15.5+ where requesting it can make texture uploads SLOWER via a
-  // stuck alwaysPreferStagedTextureUploads flag. Safari's real per-frame WebGL cost lives in WebKit's ANGLE/Metal backend itself (documented
-  // Safari-15+ regressions in texture/buffer upload cost — WebKit bugs 230749, 239015 — that Chromium's ANGLE build doesn't share), which
-  // these two flags cannot fix either way, so for Safari we now just ask for nothing more than the browser's own default. Chrome's object is
-  // untouched (same flags, same measured fix); antialias:false + alpha:false stay for both (fullscreen quad has no edges for MSAA to smooth,
-  // and the scene is opaque either way).
+  // SAFARI GETS NO WEBGL AT ALL — the owner's follow-up report ("descent glitches/lags EVERY time in Safari, ONLY the first 10s clip, fine in
+  // Chrome") plus research killed every keep-WebGL option there: `desynchronized` has ZERO WebKit support for the WebGL context path (caniuse:
+  // unsupported on every Safari/iOS-Safari version), so Safari is permanently stuck on exactly the synchronized compositor path Chrome needed
+  // rescuing from; `powerPreference:'high-performance'` is a proven WebKit no-op on macOS (WebKit bug 202834, WONTFIX) with an iOS-15.5+
+  // regression on top; and WebKit's ANGLE/Metal backend has its own documented per-frame canvas→texture upload costs (WebKit bugs 230749,
+  // 239015) that Chromium's ANGLE doesn't share — a cost this renderer pays EVERY frame (earthC/wmc are uploaded as textures). Meanwhile the
+  // story chapters — same 1920×1080 frames, same scroll engine, same machine — run smooth in Safari on a plain 2D canvas. So Safari now renders
+  // the descent through the 2D COMPOSITOR below: the same loader, the same earthC/wmc pipelines, every effect reproduced pixel-faithfully, and
+  // the visible surface becomes the same fast canvas type the story already proves out. A/B override on any browser: ?dive=2d forces the 2D
+  // compositor, ?dive=gl forces WebGL (useful for comparing the two live on Safari itself).
+  const qsDive = (() => { try { return new URLSearchParams(location.search).get('dive'); } catch(e){ return null; } })();
   const isSafari = /^((?!chrome|crios|android).)*safari/i.test(navigator.userAgent);
-  const ctxOpts = isSafari
-    ? { alpha: false, antialias: false, premultipliedAlpha: false }
-    : { alpha: false, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance', desynchronized: true };
-  try { gl = canvas.getContext('webgl', ctxOpts); } catch(e){}
-  if(!gl) return null;
+  let use2D = qsDive === '2d' || (qsDive !== 'gl' && isSafari);
+  let gl = null;
+  if(!use2D){
+    try { gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance', desynchronized: true }); } catch(e){}
+    if(!gl) use2D = true;   // WebGL unavailable → the 2D compositor IS the fallback now (keeps the wordmark/scrim/dissolve; the old createSequence fallback lost all three)
+  }
+  let ctx2 = null;
+  if(use2D){
+    // alpha:false = opaque fast path (scene covers every pixel); desynchronized IS supported by WebKit for 2D contexts (Safari 15+,
+    // unlike its WebGL counterpart) — the same low-latency present that fixed Chrome's WebGL, free where available, ignored elsewhere.
+    try { ctx2 = canvas.getContext('2d', { alpha: false, desynchronized: true }); } catch(e){}
+    if(!ctx2) return null;   // no 2D either (canvas already bound to a failed/mismatched context) → caller falls back to createSequence
+  }
   canvas.style.opacity = '0';   // stay transparent until the FIRST frame actually paints (the CSS poster behind shows through) → no black flash on load/refresh
 
   function sh(t, src){ const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
@@ -118,7 +132,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'uWM'), 1);
     uA = gl.getUniformLocation(prog, 'uAspect'); uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'); uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'); uWmDiss = gl.getUniformLocation(prog, 'uWmDiss');
     uWmScaleU = gl.getUniformLocation(prog, 'uWmScale'); uWmDriftU = gl.getUniformLocation(prog, 'uWmDriftN'); uWmOpU = gl.getUniformLocation(prog, 'uWmOp'); }
-  setupGL();
+  if(gl) setupGL();
 
   // ── self-contained frame loader (windowed decode + eviction; mirrors canvas-seq but draws cover-fit to our earthC) ──
   const earthC = document.createElement('canvas'); const octx = earthC.getContext('2d', { alpha: false });
@@ -277,24 +291,188 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const dpr = Math.min(window.devicePixelRatio || 1, 2);   // render at native retina (was 1.5 → hero was sub-native + browser-upscaled = soft on hi-DPI desktops)
     const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
     let resized = false;
-    if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); resized = true; }
-    if(earthC.width !== w || earthC.height !== h){ earthC.width = w; earthC.height = h; resized = true; }   // earthC = canvas res (FULL quality — must match the story frames so the dive→coast hand-off is seamless, no blurry→sharp snap)
+    if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; if(gl) gl.viewport(0, 0, w, h); resized = true; }
+    if(earthC.width !== w || earthC.height !== h){                                       // earthC = canvas res (FULL quality — must match the story frames so the dive→coast hand-off is seamless, no blurry→sharp snap)
+      // 2D backend: carry the last frame ACROSS the realloc (stretched to the new size). The realloc clears earthC to opaque
+      // black, and if the current dive frame isn't decode-ready at that instant (mid-scrub resize) coverDraw() holds — the GL
+      // path re-presents its stale TEXTURE in that window (textures survive a canvas resize), but a bare 2D blit would flash
+      // the cleared black source. Copying the old pixels through a scratch canvas mirrors the GL hold exactly.
+      if(use2D && earthC.width > 2 && lastDrawnF > 0){
+        const t = fit._keep || (fit._keep = document.createElement('canvas'));
+        t.width = earthC.width; t.height = earthC.height; t.getContext('2d').drawImage(earthC, 0, 0);
+        earthC.width = w; earthC.height = h; octx.drawImage(t, 0, 0, w, h);
+        t.width = 1; t.height = 1;                                                       // release the scratch backing store immediately
+      } else { earthC.width = w; earthC.height = h; }
+      resized = true; }
     const wmDpr = Math.min(window.devicePixelRatio || 1, WM_FULL_DPR);   // wordmark canvas: FULL res at all times — crisp churn + crisp rest (see WM_FULL_DPR note)
     const ww = Math.max(2, Math.round(r.width * wmDpr)), wh = Math.max(2, Math.round(r.height * wmDpr));
     if(wmc.width !== ww || wmc.height !== wh){ wmc.width = ww; wmc.height = wh; resized = true; }
     return resized;
   }
 
+  // ── 2D COMPOSITOR (Safari / no-WebGL) — a pixel-faithful port of the fragment shader above ────────────────────────
+  // Everything upstream is shared with the WebGL path: the SAME frame loader fills the SAME earthC cover-compose, the SAME
+  // wordmark decode bakes the SAME wmc bitmap, the SAME dirty/idle-skip gating decides when to draw. Only the final composite
+  // differs, effect by effect:
+  //   bg        → earthC is blitted 1:1 (it IS the texture the shader sampled); the focus-pull blur (prod ships bgBlurMax:0,
+  //               so this leg is dormant) is a two-stage downsample crossfaded over the sharp frame.
+  //   scrim     → the shader's radial smoothstep((0,0.40), centre (0.5,0.39), x-axis 1/0.62 wider) is sampled into the stops
+  //               of a cached radial-gradient sprite; drawing black-at-alpha over the frame IS the shader's bg*(1-scrim).
+  //   wordmark  → wmc and the canvas share the same DPR cap, so the intact wordmark is a 1:1 blit; the settled-exit
+  //               scale/drift/op "uniforms" (wmScaleV/wmDriftV/wmOpV) only depart from neutral once the dissolve window
+  //               opens, and the dissolve path below applies them in its sampling remap — same division of labour as the shader.
+  //   dissolve  → the EXACT shader math on the EXACT screen-space cell grid (H/170 square cells): same per-cell hash for the
+  //               erode threshold + stagger, same lateral jitter, same rise curve, same smoothstep erode, same additive icy
+  //               spark; each surviving cell blits its remapped source region with alpha = keep·op. A cell-resolution ink mask
+  //               (wmc downsampled to one px per cell, ~30k px readback) skips the ~2/3 of grid cells that hold no letter ink.
+  const CELL_N = 170;                                       // shader cellN — square fleck cells of H/170 device px
+  const fract = (x) => x - Math.floor(x);
+  const cellHash = (x, y) => fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453123);   // the shader's hash(); JS sin precision differs from the GPU's — same statistics, equally stable frame-to-frame, never shown side by side
+  let scrimC = null, scrimStale = true;                     // cached scrim sprite (rebaked on resize)
+  let blurA = null, blurB = null;                           // small downsample ping-pong canvases (blur legs only)
+  let wmFxC = null, wmFxCtx = null, cyanC = null, cyanCtx = null, cyanStale = true;   // dissolve source (wmc + spark [+ blur]) and the cyan silhouette, both sized to the padded ink region
+  let maskData = null, maskW = 0, maskH = 0, maskStale = true, inkBox = null, srcR = null;
+  function bakeScrim(){
+    scrimStale = false;
+    const W = canvas.width, H = canvas.height, sw = Math.max(2, W >> 2), sh = Math.max(2, H >> 2);   // ¼-res sprite; bilinear upscale of a smooth gradient is lossless to the eye
+    if(!scrimC) scrimC = document.createElement('canvas');
+    if(scrimC.width !== sw || scrimC.height !== sh){ scrimC.width = sw; scrimC.height = sh; }
+    const c = scrimC.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, sw, sh);
+    // shader: sd = uv-(0.5,0.39); sd.x *= 0.62 → the len(sd)=0.40 contour is an ellipse with semi-axes (0.40/0.62)·W × 0.40·H
+    c.translate(0.5 * sw, 0.39 * sh); c.scale((0.40 / 0.62) * sw, 0.40 * sh);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    for(let k = 0; k <= 8; k++){ const t = k / 8, s = t * t * (3 - 2 * t);           // sample the smoothstep falloff into gradient stops (radial gradients lerp between stops — 9 samples nails the curve)
+      g.addColorStop(t, 'rgba(0,0,0,' + (0.40 * (1 - s)).toFixed(4) + ')'); }
+    c.fillStyle = g; c.fillRect(-4, -4, 8, 8);              // unit-space rect large enough to cover the whole sprite; past t=1 the gradient clamps to alpha 0
+    c.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function buildInkMask(){
+    maskStale = false;
+    const W = canvas.width, H = canvas.height;
+    maskH = CELL_N; maskW = Math.max(1, Math.round(CELL_N * W / Math.max(1, H)));     // one mask texel per screen cell
+    const mc = buildInkMask._c || (buildInkMask._c = document.createElement('canvas'));
+    if(mc.width !== maskW || mc.height !== maskH){ mc.width = maskW; mc.height = maskH; }
+    const mx = mc.getContext('2d', { willReadFrequently: true });
+    mx.clearRect(0, 0, maskW, maskH); mx.drawImage(wmc, 0, 0, maskW, maskH);
+    let d = null; try { d = mx.getImageData(0, 0, maskW, maskH).data; } catch(e){}
+    maskData = d;
+    let x0 = maskW, y0 = maskH, x1 = -1, y1 = -1;
+    if(d){ for(let y = 0; y < maskH; y++){ const row = y * maskW;
+      for(let x = 0; x < maskW; x++){ if(d[(row + x) * 4 + 3] > 4){ if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y; } } } }
+    inkBox = (d && x1 >= 0) ? { x0, y0, x1, y1 } : (d ? null : { x0: 0, y0: 0, x1: maskW - 1, y1: maskH - 1 });   // readback blocked → assume ink everywhere (correct, just less pruning); genuinely blank wmc → null (dissolve no-ops)
+    // source region for the dissolve scratch canvases: the ink bbox + 2 cells of margin (device px, clamped to the canvas).
+    // Cells only ever SAMPLE within the ink (the mask gate skips the rest), so the scratch never needs the full canvas —
+    // at a typical wordmark footprint that's ~4× less scratch memory than two full-screen RGBA canvases.
+    if(inkBox){ const cw = W / maskW, ch = H / maskH;
+      const rx = Math.max(0, Math.floor((inkBox.x0 - 2) * cw)), ry = Math.max(0, Math.floor((inkBox.y0 - 2) * ch));
+      srcR = { x: rx, y: ry,
+        w: Math.min(W - rx, Math.ceil((inkBox.x1 - inkBox.x0 + 5) * cw)), h: Math.min(H - ry, Math.ceil((inkBox.y1 - inkBox.y0 + 5) * ch)) };
+    } else srcR = null;
+  }
+  function draw2DDissolve(diss, wmBlur){
+    if(maskStale || !wmDecode.settled) buildInkMask();      // settled: rebuilt only when the bake actually changes; churn-overlap (scrolled mid-entrance): per frame — it's a cell-res readback, trivial
+    if(!inkBox || !srcR) return;
+    const W = canvas.width, H = canvas.height;
+    const sc = wmScaleV, dN = wmDriftV, op = wmOpV;
+    const cellsX = maskW, cellsY = maskH, cw = W / cellsX, ch = H / cellsY;
+    // dissolve source = wmc + icy spark (the shader's wm.rgb += (.05,.13,.20)·wm.a·uWmDiss — additive cyan inside the ink,
+    // 'lighter' over a silhouette pre-filled with that colour), then the exit soft-focus as a downsample crossfade (blur4's tent)
+    if(!wmFxC){ wmFxC = document.createElement('canvas'); wmFxCtx = wmFxC.getContext('2d'); cyanC = document.createElement('canvas'); cyanCtx = cyanC.getContext('2d'); }
+    if(wmFxC.width < srcR.w || wmFxC.height < srcR.h){ wmFxC.width = srcR.w; wmFxC.height = srcR.h; cyanC.width = srcR.w; cyanC.height = srcR.h; cyanStale = true; }
+    if(cyanStale){ cyanStale = false;
+      cyanCtx.clearRect(0, 0, srcR.w, srcR.h); cyanCtx.drawImage(wmc, srcR.x, srcR.y, srcR.w, srcR.h, 0, 0, srcR.w, srcR.h);
+      cyanCtx.globalCompositeOperation = 'source-in'; cyanCtx.fillStyle = 'rgb(13,33,51)'; cyanCtx.fillRect(0, 0, srcR.w, srcR.h);
+      cyanCtx.globalCompositeOperation = 'source-over'; }
+    wmFxCtx.clearRect(0, 0, srcR.w, srcR.h);
+    wmFxCtx.drawImage(wmc, srcR.x, srcR.y, srcR.w, srcR.h, 0, 0, srcR.w, srcR.h);
+    wmFxCtx.globalCompositeOperation = 'lighter'; wmFxCtx.globalAlpha = diss;
+    wmFxCtx.drawImage(cyanC, 0, 0, srcR.w, srcR.h, 0, 0, srcR.w, srcR.h);   // explicit region — the scratch canvases are growth-only sized, so the canvas itself can outlive a shrunken srcR
+    wmFxCtx.globalCompositeOperation = 'source-over'; wmFxCtx.globalAlpha = 1;
+    if(wmBlur > 0.0008){                                    // soft-focus the flecks: blur the ink region, crossfade it over the sharp source (approximates the shader's growing tent radius; identical at the window's peak)
+      if(!blurA) blurA = document.createElement('canvas');
+      const s = 4, bw = Math.max(2, Math.ceil(srcR.w / s)), bh = Math.max(2, Math.ceil(srcR.h / s));
+      if(blurA.width < bw || blurA.height < bh){ blurA.width = bw; blurA.height = bh; }
+      const ac = blurA.getContext('2d');
+      ac.clearRect(0, 0, bw, bh); ac.drawImage(wmFxC, 0, 0, srcR.w, srcR.h, 0, 0, bw, bh);
+      wmFxCtx.globalAlpha = Math.min(1, wmBlur / Math.max(1e-6, cfg.wmBlurMax));
+      wmFxCtx.drawImage(blurA, 0, 0, bw, bh, 0, 0, srcR.w, srcR.h); wmFxCtx.globalAlpha = 1;
+    }
+    // THE SCATTER — iterate only the cells that could show ink this frame: the ink bbox widened by the CURRENT jitter reach
+    // (±0.030·diss of W) and raised by the CURRENT rise reach (up to 0.175·diss of H — cells ABOVE the letters sample DOWN
+    // into them as the flecks fly up). Every constant below is the shader's, verbatim.
+    const ax = 0.5, ay = 0.36;                              // wmAnchor
+    // vertical pad covers the FULL downward sample reach, not just the raw rise: the remap below also shifts sampling down by
+    // the global drift (-dN) and the scale pull toward the anchor (ay·(1-1/sc) upper-bounds it for any cell above the ink) —
+    // without those terms the topmost (highest-n, longest-surviving) flecks of the spindrift crest were culled vs the shader
+    const padX = Math.ceil((0.030 * diss * W) / cw) + 1;
+    const padUp = Math.ceil(((0.175 * diss + Math.abs(dN) + ay * (1 - 1 / sc)) * H) / ch) + 1;
+    const bx0 = Math.max(0, inkBox.x0 - padX), bx1 = Math.min(cellsX - 1, inkBox.x1 + padX);
+    const by0 = Math.max(0, inkBox.y0 - padUp), by1 = Math.min(cellsY - 1, inkBox.y1 + 1);
+    for(let cy = by0; cy <= by1; cy++){
+      const uy = cy / cellsY;
+      // snap tile edges to SHARED integer device pixels: at fractional edges canvas AA composes two abutting tiles to less
+      // than full alpha (up to a ~25% dip at a half-pixel seam), which read as a hairline grid across the still-solid letters
+      // in the first dissolve frames. Shared snapped edges reconstruct gapless coverage exactly; the source rect scales and
+      // shifts by the same deltas so the mapping stays the shader's.
+      const dy0 = Math.round(uy * H), dy1 = Math.round(((cy + 1) / cellsY) * H), dh = dy1 - dy0;
+      for(let cx = bx0; cx <= bx1; cx++){
+        const n = cellHash(cx, cy);
+        const keep = (1 - sstep(n - 0.06, n + 0.06, diss)) * op;                     // erode past the per-cell threshold; op = the shader's uWmOp master fade
+        if(keep <= 0.004) continue;
+        const n2 = cellHash(cx + 17.3, cy + 17.3);
+        const ux = cx / cellsX;
+        const wu = ax + (ux - ax) / sc + (n2 - 0.5) * 0.030 * diss;                  // shader wmUv remap (scale about the anchor; x carries no drift) + lateral jitter
+        const wv = ay + (uy - ay - dN) / sc + diss * (0.045 + 0.13 * n);             // + drift + the per-fleck rise (sampling lower in the bitmap = the fleck flying up)
+        const mxi = Math.floor(wu * cellsX + 0.5), myi = Math.floor(wv * cellsY + 0.5);   // mask texel under the SAMPLED region's centre (origin + half a cell)
+        if(mxi < 0 || myi < 0 || mxi >= cellsX || myi >= cellsY) continue;
+        if(maskData && maskData[(myi * cellsX + mxi) * 4 + 3] < 5) continue;         // no letter ink where this cell samples → skip the draw entirely
+        const dx0 = Math.round(ux * W), dx1 = Math.round(((cx + 1) / cellsX) * W), dw = dx1 - dx0;
+        ctx2.globalAlpha = keep;
+        ctx2.drawImage(wmFxC, wu * W - srcR.x + (dx0 - ux * W) / sc, wv * H - srcR.y + (dy0 - uy * H) / sc, dw / sc, dh / sc, dx0, dy0, dw, dh);
+      }
+    }
+    ctx2.globalAlpha = 1;
+  }
+  function draw2D(bgBlur, wmBlur, wmDiss){
+    const W = canvas.width, H = canvas.height;
+    ctx2.globalAlpha = 1;
+    ctx2.drawImage(earthC, 0, 0);                           // bg: earthC IS the texture the shader sampled — 1:1 blit
+    if(bgBlur > 0.0008){                                    // focus-pull rack (dormant in prod: cinematic.js ships bgBlurMax:0; kept live for the cfg knob)
+      if(!blurA) blurA = document.createElement('canvas'); if(!blurB) blurB = document.createElement('canvas');
+      const aw = Math.max(2, W >> 2), ah = Math.max(2, H >> 2), bw = Math.max(2, W >> 3), bh = Math.max(2, H >> 3);
+      if(blurA.width < aw || blurA.height < ah){ blurA.width = aw; blurA.height = ah; }
+      if(blurB.width !== bw || blurB.height !== bh){ blurB.width = bw; blurB.height = bh; }
+      const ac = blurA.getContext('2d'), bc = blurB.getContext('2d');
+      ac.drawImage(earthC, 0, 0, aw, ah); bc.drawImage(blurA, 0, 0, aw, ah, 0, 0, bw, bh);   // two-stage downsample ≈ gaussian; crossfaded below ≈ the shader's shrinking tent radius
+      ctx2.globalAlpha = Math.min(1, bgBlur / Math.max(1e-6, cfg.bgBlurMax));
+      ctx2.drawImage(blurB, 0, 0, bw, bh, 0, 0, W, H); ctx2.globalAlpha = 1;
+    }
+    if(wmDiss < 0.999){                                     // scrim (fades with the dissolve exactly like the shader's ·(1-uWmDiss); fully gone → skip the draw)
+      if(scrimStale) bakeScrim();
+      ctx2.globalAlpha = 1 - wmDiss; ctx2.drawImage(scrimC, 0, 0, W, H); ctx2.globalAlpha = 1;
+    }
+    if(wmOpV <= 0.002) return;                              // wordmark fully faded (shader's op<=0.002 clear) — bg+scrim only
+    if(wmDiss <= 0.001){                                    // intact wordmark: same DPR cap as the canvas → 1:1 blit. Neutral pose by construction:
+      ctx2.globalAlpha = wmOpV;                             // the exit's scale/drift only depart from (1,0) once the dissolve window opens (e>0 ⇔ wmDiss>0),
+      ctx2.drawImage(wmc, 0, 0);                            // and the churn phase bakes its own scale/drift/op into wmc's pixels with uniforms pinned neutral.
+      ctx2.globalAlpha = 1;
+      return;
+    }
+    draw2DDissolve(wmDiss, wmBlur);
+  }
+
   let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1;
   let texAlloc = false, wmTexAlloc = false;   // false → next upload must (re)allocate the GPU texture store via texImage2D; true → update in place via texSubImage2D (avoids re-allocating the whole store every frame — best-practice, though the real first-glide fix was the desynchronized context flag)
   function frame(){
     const resized = fit();
-    if(resized){ bakedSettled = false; texAlloc = false; wmTexAlloc = false; }            // a wmc/earth realloc cleared the wordmark canvas → force one re-bake+upload; the GPU textures also need a fresh texImage2D at the new size before texSubImage2D can update them (also re-bakes it crisp after the settle resize)
+    if(resized){ bakedSettled = false; texAlloc = false; wmTexAlloc = false; scrimStale = true; maskStale = true; cyanStale = true; }   // a wmc/earth realloc cleared the wordmark canvas → force one re-bake+upload; the GPU textures also need a fresh texImage2D at the new size before texSubImage2D can update them (also re-bakes it crisp after the settle resize); the 2D compositor's cached sprites/masks re-derive from the new sizes the same way
     let dirty = resized;
     if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; dirty = true; } }   // earthC only changes when the frame/blend moves or on resize
     if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
     const e = sstep(cfg.wmExitStart, cfg.wmExitEnd, progress);                  // wordmark exit progress (0 held → 1 fully scattered)
     const wmChanged = drawWordmark(e); if(wmChanged) dirty = true;
+    if(use2D && wmTexNeedsUpload){ maskStale = true; cyanStale = true; }        // "texture upload needed" = wmc's CONTENT changed — the 2D path's ink mask + cyan silhouette derive from those pixels
     // FOCUS-PULL + DISINTEGRATION amounts (ride scroll, not a centred membrane): bg racks soft→sharp before the seam; the wordmark soft-blurs
     // and SHATTERS into rising icy flecks as it exits (uWmDiss drives the per-cell erode/rise/spark in the shader)
     const bgBlur = cfg.bgBlurMax * (1 - sstep(0.10, cfg.bgSharpEnd, progress));
@@ -302,6 +480,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const wmDiss = e;
     if(bgBlur !== lastBgBlur || wmBlur !== lastWmBlur || wmDiss !== lastWmDiss) dirty = true;
     if(dirty || !painted){                                                       // idle-skip: at rest (no scroll, decode settled) nothing changes → no GPU draw (was: redraw every rAF for the now-removed wobble)
+      if(use2D){ earthDirty = false; draw2D(bgBlur, wmBlur, wmDiss); }           // 2D compositor: earthC/wmc are read directly — no upload step to gate, the dirty flags already decided this frame draws
+      else {
       try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
         if(earthDirty){ earthDirty = false;
           if(texAlloc){ gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGB, gl.UNSIGNED_BYTE, earthC); }   // FAST PATH — update pixels in the existing GPU allocation instead of reallocating the whole texture store every frame (best practice)
@@ -314,6 +494,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
       gl.uniform1f(uBgBlur, bgBlur); gl.uniform1f(uWmBlur, wmBlur); gl.uniform1f(uWmDiss, wmDiss);
       gl.uniform1f(uWmScaleU, wmScaleV); gl.uniform1f(uWmDriftU, wmDriftV); gl.uniform1f(uWmOpU, wmOpV);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
       lastBgBlur = bgBlur; lastWmBlur = wmBlur; lastWmDiss = wmDiss;
       if(!painted){ painted = true; canvas.style.opacity = '1'; }                         // first real paint — fade the canvas in over the poster (CSS transition)
     }
@@ -335,7 +516,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function start(){ if(running) return; running = true; raf = requestAnimationFrame(frame); }
   function stop(){ running = false; cancelAnimationFrame(raf); }
   // GPU dropped the WebGL context: fall back to the poster (canvas transparent) instead of a permanent black canvas, and stop the loop
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); painted = false; lastDrawnF = -1; earthDirty = false; canvas.style.opacity = '0'; stop(); }, false);
+  // (WebGL backend only — a 2D canvas has no context-loss lifecycle to recover from; its listeners would just be dead weight)
+  if(gl) canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); painted = false; lastDrawnF = -1; earthDirty = false; canvas.style.opacity = '0'; stop(); }, false);
   // RESTORE (owner: "sometimes the video just disappears and background is black") — preventDefault() above IS what tells the browser to
   // actually attempt restoration (GPU resets/driver hiccups/too many contexts piling up across refreshes are the common real-world
   // triggers), but nothing was ever resuming afterward: the old program/buffers/textures were destroyed with the lost context and the
@@ -343,7 +525,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // earthC (the 2D source canvas) and wmc (the wordmark canvas) are untouched by a WebGL context loss — only the GL-side resources need
   // recreating — so this just rebuilds the program/buffers/textures, forces one full re-upload of the already-decoded content, and
   // resumes the loop. No re-fetch, no re-decode, no visible re-scramble.
-  canvas.addEventListener('webglcontextrestored', () => {
+  if(gl) canvas.addEventListener('webglcontextrestored', () => {
     setupGL(); earthDirty = true; wmTexStale = true; texAlloc = false; wmTexAlloc = false; needsFit = true; start(); }, false);   // setupGL() makes brand-new (unallocated) textures → the alloc flags must reset so the next upload re-allocs via texImage2D before any texSubImage2D. wmTexStale (not bakedSettled=false): wmc's pixels survive a WebGL-only context loss, so this only needs a re-upload, not a re-bake
   setFrame(0); start();
 
@@ -361,7 +543,9 @@ export function createDiveLens({ canvas, dir, count, settings }){
     get cached(){ return prefetchDone; },   // true once ALL count frames have been HTTP-prefetched (the whole dive is in cache → the fast scrub never network-stalls). The loader gates on this via the 'hero' signal.
     get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
+      pendingQueue.length = 0;                                                        // drop queued (not-yet-started) frame loads — they'd otherwise keep fetching+decoding into this dead instance as inflight slots free up
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
-      try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }
+      scrimC = blurA = blurB = wmFxC = wmFxCtx = cyanC = cyanCtx = maskData = null;   // release the 2D compositor's scratch surfaces (no-ops on the WebGL path)
+      try { if(gl){ gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } } catch(e){} }
   };
 }
