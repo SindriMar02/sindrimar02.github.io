@@ -266,7 +266,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     return resized;
   }
 
-  let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1;
+  let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1, lastDrawAt = 0;
   function frame(){
     const resized = fit();
     if(resized){ bakedSettled = false; }            // a wmc/earth realloc cleared the wordmark canvas → force one re-bake+upload (also re-bakes it crisp after the settle resize)
@@ -281,7 +281,17 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const wmBlur = cfg.wmBlurMax * sstep(cfg.wmExitStart + 0.06, cfg.wmExitEnd, progress);
     const wmDiss = e;
     if(bgBlur !== lastBgBlur || wmBlur !== lastWmBlur || wmDiss !== lastWmDiss) dirty = true;
+    // GPU KEEP-ALIVE (owner: "first scroll isn't smooth, every scroll after is") — the idle-skip below is a genuine perf win (0 GPU
+    // draws at rest) but it means the WebGL pipeline can sit fully idle for however long the viewer reads the resting hero before
+    // their first scroll. This is the ONLY glide that touches WebGL at all — every later chapter-to-chapter glide scrubs the story on
+    // a plain 2D canvas, which has no comparable "pipeline" to go cold. GPU drivers/compositors commonly downclock or evict resources
+    // during real idle stretches, so the first scroll can pay a one-time wake-up cost that no later glide ever hits — matching the
+    // reported pattern exactly. Force one cheap draw at least every 800ms even at rest so the pipeline never goes fully cold; ~1.25
+    // draws/sec is negligible GPU cost, nowhere near the "redraw every rAF" cost this idle-skip was originally added to remove.
+    const now = performance.now();
+    if(!dirty && now - lastDrawAt > 800) dirty = true;
     if(dirty || !painted){                                                       // idle-skip: at rest (no scroll, decode settled) nothing changes → no GPU draw (was: redraw every rAF for the now-removed wobble)
+      lastDrawAt = now;
       try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
         if(earthDirty){ earthDirty = false; gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); } } catch(e){}
       try { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wmTex);
