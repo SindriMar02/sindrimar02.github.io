@@ -26,19 +26,34 @@ export function createSequence({ canvas, dir, count }){
     cw = Math.round(r.width); ch = Math.round(r.height);
     canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); draw(curF); }
   function size(){ if(rafResize) return; rafResize = requestAnimationFrame(() => { rafResize = 0; realSize(); }); }
-  function load(i){ if(i < 1 || i > n || frames[i-1]) return;
+  // CONCURRENCY GATE (owner: "still unreliable/stuttery") — this module had ZERO inflight cap: preload() fires up to 25
+  // simultaneous Image()+decode() requests per scroll-driven center change, and it's ALSO dive-lens's no-WebGL fallback for
+  // the descent hero (WebGL context creation failure — GPU pressure/driver hiccup/repeat-visit context exhaustion), so that
+  // entire visitor population streamed the whole dive sequence through a completely unthrottled path that the WebGL-side
+  // concurrency fixes never touched. Mirrors dive-lens.js's load() gate exactly: speculative callers (preload's lookahead
+  // window) queue past MAX_INFLIGHT; the on-demand call inside draw() (the frame actively blocking the visible render)
+  // passes prioritize=true to bypass the cap outright — it must never wait behind speculative work.
+  let inflightLoads = 0; const MAX_INFLIGHT = 8; const pendingQueue = [];
+  function startLoad(i, onSettle){
     const im = new Image(); im.decoding = 'async';
-    im.onload = () => { if(Math.round(curF) === i) draw(curF); };   // draw when loaded (renders in any tab state)
+    im.onload = () => { if(Math.round(curF) === i) draw(curF); onSettle(); };   // draw when loaded (renders in any tab state)
     im.onerror = () => { if(frames[i-1] !== im) return; frames[i-1] = undefined;        // free the slot (was: a failed/aborted request stayed in the array forever → frozen sequence)
-      if(tries[i-1] < 4){ tries[i-1]++; setTimeout(() => { if(!frames[i-1]) load(i); }, 300 * tries[i-1]); } };   // capped backoff retry so a transient miss self-heals
+      if(tries[i-1] < 4){ tries[i-1]++; setTimeout(() => { if(!frames[i-1]) startLoad(i, onSettle); }, 300 * tries[i-1]); }   // capped backoff retry so a transient miss self-heals
+      else onSettle(); };
     im.src = src(i); frames[i-1] = im;
     if(im.decode) im.decode().catch(() => {}); }   // WARM the off-thread decode so a later drawImage rarely hits a SYNC decode (the scrub-jank cause)
+  function drainQueue(){ while(inflightLoads < MAX_INFLIGHT && pendingQueue.length){ const i = pendingQueue.shift();
+      if(frames[i-1]) continue;                                                         // loaded by another path while queued
+      inflightLoads++; startLoad(i, () => { inflightLoads--; drainQueue(); }); } }
+  function load(i, prioritize){ if(i < 1 || i > n || frames[i-1]) return;
+    if(prioritize || inflightLoads < MAX_INFLIGHT){ inflightLoads++; startLoad(i, () => { inflightLoads--; drainQueue(); }); }
+    else { pendingQueue.push(i); } }
   function drop(im){ if(im){ im.onload = null; im.onerror = null; im.src = ''; } }   // null handlers BEFORE blanking src so the abort doesn't trip onerror/retry
   function cover(img){ const ir = img.naturalWidth / img.naturalHeight, cr = cw / ch; let w, h;   // draw cover-fit DIRECTLY (no per-frame [x,y,w,h] array alloc → no GC saw-tooth in the scrub hot path)
     if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h); }
   function draw(f){ curF = f; if(!cw) return;
     const lo = Math.max(1, Math.min(n, Math.floor(f))), hi = Math.min(n, lo + 1), frac = f - lo;
-    const a = frames[lo-1]; if(!isReady(a)){ load(lo); return; }       // FRAME-EXACT: hold the last good frame until this one is loaded (no substitute frame)
+    const a = frames[lo-1]; if(!isReady(a)){ load(lo, true); return; }   // FRAME-EXACT: hold the last good frame until this one is loaded (no substitute frame). PRIORITIZED — this frame is blocking the visible render right now, must never queue behind preload's lookahead
     ctx.globalAlpha = 1; cover(a);                                    // opaque cover-fill overwrites all → no clearRect needed
     const b = frames[hi-1]; if(frac > 0 && isReady(b)){ ctx.globalAlpha = frac; cover(b); ctx.globalAlpha = 1; }
     if(!painted){ painted = true; canvas.style.opacity = '1'; } }      // first real content drawn — reveal (was: visible+black from creation until this point)

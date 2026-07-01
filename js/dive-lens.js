@@ -17,6 +17,7 @@ const VS = 'attribute vec2 p; varying vec2 vUv; void main(){ vUv=vec2(p.x*0.5+0.
 const FS = [
   'precision highp float;',
   'uniform sampler2D uTex; uniform sampler2D uWM; uniform float uAspect; uniform float uBgBlur; uniform float uWmBlur; uniform float uWmDiss;',
+  'uniform float uWmScale; uniform float uWmDriftN; uniform float uWmOp;',   // GPU-side wordmark zoom/lift/fade — was CPU-rasterized into wmc + re-uploaded every frame of the exit window (owner-reported stutter); now the bake is static once settled and only these 3 scalars change per frame
   'varying vec2 vUv;',
   'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }',
   'vec3 blur3(vec2 uv, float r){',
@@ -40,19 +41,27 @@ const FS = [
   '  float scrim = (1.0 - smoothstep(0.0, 0.40, length(sd))) * (1.0 - uWmDiss) * 0.40;',   // fades out as the wordmark disintegrates so the scene reads clean once the title is gone
   '  bg *= (1.0 - scrim);',
   '  vec4 wm;',
+  // wmc is now baked ONCE (at rest: scale=1, drift=0) whenever the wordmark is settled — the continuous per-frame zoom/lift/fade that
+  // used to be CPU-rasterized into wmc (forcing a full-resolution re-upload every frame of the exit window) is applied HERE instead, as
+  // a UV remap around the wordmark's anchor point before sampling. Uniform scale in PIXEL space needs no aspect correction (the W/H
+  // terms cancel — see the derivation in drawWordmark's comment); the disintegration cell grid below stays screen-space so flecks keep
+  // a consistent on-screen size regardless of the live zoom.
+  '  vec2 wmAnchor = vec2(0.5, 0.36);',
+  '  vec2 wmUv = wmAnchor + (vUv - wmAnchor - vec2(0.0, uWmDriftN)) / uWmScale;',
   '  if(uWmDiss > 0.001){',
   '    vec2 cellN = vec2(uAspect, 1.0) * 170.0;',          // square fleck cells (~7px); aspect keeps them square in screen space
   '    vec2 cell  = floor(vUv * cellN);',
   '    float n  = hash(cell);',                            // per-cell vanish threshold (low n leaves first → staggered scatter)
   '    float n2 = hash(cell + 17.3);',                     // per-cell horizontal jitter
-  '    vec2 duv = vUv + vec2((n2 - 0.5) * 0.030 * uWmDiss, uWmDiss * (0.045 + 0.13 * n));',   // each fleck rises HARDER + scatters laterally as it flies off into the spindrift
+  '    vec2 duv = wmUv + vec2((n2 - 0.5) * 0.030 * uWmDiss, uWmDiss * (0.045 + 0.13 * n));',   // each fleck rises HARDER + scatters laterally as it flies off into the spindrift
   '    wm = blur4(duv, uWmBlur);',
   '    float keep = 1.0 - smoothstep(n - 0.06, n + 0.06, uWmDiss);',   // erode the cell once the dissolve front passes its threshold
   '    wm.a *= keep;',
   '    wm.rgb += vec3(0.05, 0.13, 0.20) * wm.a * uWmDiss;',            // icy spark — surviving flecks brighten toward signal-cyan as they fly off
   '  } else {',
-  '    wm = blur4(vUv, uWmBlur);',
+  '    wm = blur4(wmUv, uWmBlur);',
   '  }',
+  '  wm.a *= uWmOp;',                                                  // global fade (was CPU-baked master alpha; now a uniform so the settled bake never needs re-rasterizing for a pure alpha change either)
   '  vec3 col = mix(bg, wm.rgb, clamp(wm.a, 0.0, 1.0));',
   '  gl_FragColor = vec4(col, 1.0);',
   '}'
@@ -73,7 +82,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function mkTex(){ const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); return t; }
-  let prog, quad, loc, tex, wmTex, uA, uBgBlur, uWmBlur, uWmDiss;
+  let prog, quad, loc, tex, wmTex, uA, uBgBlur, uWmBlur, uWmDiss, uWmScaleU, uWmDriftU, uWmOpU;
   function setupGL(){                                         // (re)create every GL resource — called once below AND again on webglcontextrestored
     prog = gl.createProgram();
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
@@ -84,7 +93,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
     tex = mkTex(); wmTex = mkTex();
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'uWM'), 1);
-    uA = gl.getUniformLocation(prog, 'uAspect'); uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'); uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'); uWmDiss = gl.getUniformLocation(prog, 'uWmDiss'); }
+    uA = gl.getUniformLocation(prog, 'uAspect'); uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'); uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'); uWmDiss = gl.getUniformLocation(prog, 'uWmDiss');
+    uWmScaleU = gl.getUniformLocation(prog, 'uWmScale'); uWmDriftU = gl.getUniformLocation(prog, 'uWmDriftN'); uWmOpU = gl.getUniformLocation(prog, 'uWmOp'); }
   setupGL();
 
   // ── self-contained frame loader (windowed decode + eviction; mirrors canvas-seq but draws cover-fit to our earthC) ──
@@ -149,10 +159,19 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // with zero network/decode contention. An early scroll is still warm-gated (cinematic.js) so the dive only scrubs once cached; the
   // bulk streams in during the seconds the viewer reads the resting hero. Owner-directed: prefer a longer load over any entry lag.
   let prefetchStarted = false;
+  // CONCURRENCY (was 12, uncoordinated with the load()/MAX_INFLIGHT gate above — combined worst case could reach ~20 simultaneous
+  // network requests, exactly when a slow-connection visitor's glide gets force-released into the wordmark-exit window by the 8s
+  // armWarmFire failsafe while this is still pumping). Lowered to 6 so the combined ceiling stays reasonable, and tags requests
+  // low-priority so this background cache-warm never outranks a frame actively needed on screen — matching the pattern
+  // canvas-seq.js's prefetchAll() already uses for the story sequence. (NOT deduping against an already-claimed `frames[i-1]`
+  // here: load()'s "already claimed" branch resolves onDone IMMEDIATELY without waiting for that image to actually finish, so
+  // treating it as "fetched" here would mark prefetchDone/cached true before that frame is genuinely ready — a correctness
+  // regression for the exact safety guarantee the scroll-gate in cinematic.js depends on. The browser's own HTTP cache already
+  // coalesces identical concurrent requests, so the minor duplicate-bookkeeping cost here is intentional, not an oversight.)
   function runPrefetchRest(){ if(prefetchStarted) return; prefetchStarted = true;
     let i = 1, inflight = 0;
-    const pump = () => { while(inflight < 12 && i <= count){ const u = srcOf(i++); inflight++;
-        fetch(u, { signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
+    const pump = () => { while(inflight < 6 && i <= count){ const u = srcOf(i++); inflight++;
+        fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
     pump(); }
   // safety net: if no reveal/settle ever fires (e.g. session-cached skip under reduced motion), still fill the cache shortly after load
   window.addEventListener('load', () => setTimeout(runPrefetchRest, 4500), { once: true });
@@ -165,7 +184,12 @@ export function createDiveLens({ canvas, dir, count, settings }){
   const wmDecode = createWordmarkDecode({ subGap: 0.8, titleStagger: 220, sub: document.documentElement.lang === 'is' ? 'ÚTVEGAÐ. AFHENT. STUTT.' : 'SOURCED. DELIVERED. SUPPORTED.' });   // 220ms per letter = strict sequential (A→R→T→I→X)
   let progress = 0, t0 = performance.now(), raf = 0, running = false;
   // per-frame change tracking — skip the expensive work (layout reflow, cover redraw, GPU uploads, wordmark glyph loop) when nothing changed
-  let needsFit = true, lastDrawnF = -1, earthDirty = false, lastWmOp = -1, lastWmScale = -1, lastWmDrift = -1, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
+  let needsFit = true, lastDrawnF = -1, earthDirty = false, ro = null;   // earthDirty starts FALSE so the first frame() doesn't upload an empty earthC (black) over the poster — it's set true only once coverDraw actually draws
+  // SETTLED-BAKE state (owner-reported wordmark-exit stutter, confirmed via live frame timing: a dense run of 30fps frames exactly
+  // spanning the exit window, even with the decode already settled — traced to drawWordmark CPU-rasterizing + fully re-uploading wmc
+  // EVERY frame because scale/drift genuinely change frame-to-frame there, defeating the old dirty-gate). Once wmDecode.settled, the
+  // bitmap content itself never changes again — bake it ONCE at a neutral pose and drive scale/drift/alpha as shader uniforms instead.
+  let bakedSettled = false, wmTexStale = false, wmTexNeedsUpload = false, wmScaleV = 1, wmDriftV = 0, wmOpV = 1, lastWmScaleV = -1, lastWmDriftV = -1, lastWmOpV = -1;
   // wmc (wordmark canvas) resolution: FULL DPR at ALL times, including during the scramble-in churn (owner: the decode must stay
   // crystal-crisp — never down-rezzed). The decode is kept smooth NOT by dropping resolution but by removing contention: the dive
   // frame prefetch is held back until the decode settles (see runPrefetchRest), so the ~2.7s decode owns the main thread. The shader
@@ -184,9 +208,39 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const scale = 1 + e * 0.05;                                     // subtle push (the scatter is the event)
     const op = 1 - sstep(0.82, 1.0, e);                            // hold solid through the scatter, fade only the final remnant
     const drift = -e * wmc.height * 0.018;                         // tiny global lift (the shader does the per-fleck rise)
-    // once the decode is fully settled the wordmark only changes when the exit state moves (scroll) — skip clear+draw (+upload) at rest
-    if(wmDecode.settled && op === lastWmOp && scale === lastWmScale && drift === lastWmDrift) return false;
-    lastWmOp = op; lastWmScale = scale; lastWmDrift = drift;
+
+    if(wmDecode.settled){
+      // SETTLED — content is a fixed locked bitmap that never changes again on its own; bake it ONCE at a neutral pose (scale=1,
+      // drift=0, alpha=1) and drive scale/drift/alpha as shader uniforms instead (uWmScale/uWmDriftN/uWmOp — applied as a UV remap
+      // around the wordmark's anchor in the fragment shader). Uniform pixel-space scale needs no aspect correction (the canvas
+      // width/height terms cancel in the derivation); the scale here only ever ranges [1, 1.05] so the remapped sample is always
+      // PULLED TOWARD the anchor, never pushed beyond the baked content's bounds — no CLAMP_TO_EDGE smearing risk for this range.
+      wmTexNeedsUpload = false;                                     // separate from the return value: frame() must only re-upload the GPU texture on ACTUAL content change, never on a pure uniform (scale/drift/op) change — that's the whole point of this rewrite
+      if(!bakedSettled || wmTexStale){
+        wmTexStale = false;
+        if(!bakedSettled){                                          // content itself is stale (never baked, or a resize cleared wmc) — actually re-render; a context-restore alone doesn't need this (wmc's pixels survive a WebGL-only context loss)
+          bakedSettled = true;
+          wmctx.clearRect(0, 0, wmc.width, wmc.height);
+          const fs = Math.round(wmc.height * 0.11);
+          wmctx.save();
+          wmctx.translate(wmc.width * 0.5, wmc.height * 0.36);
+          wmDecode.draw(wmctx, 0, 0, fs, performance.now(), 1, 1);
+          wmctx.restore();
+        }
+        wmTexNeedsUpload = true;
+      }
+      wmScaleV = scale; wmDriftV = drift / wmc.height; wmOpV = op;
+      const uniformsChanged = (wmScaleV !== lastWmScaleV || wmDriftV !== lastWmDriftV || wmOpV !== lastWmOpV);
+      lastWmScaleV = wmScaleV; lastWmDriftV = wmDriftV; lastWmOpV = wmOpV;
+      return wmTexNeedsUpload || uniformsChanged;                    // still tells frame() "redraw the frame" (gl.drawArrays) — just no longer forces a texture re-upload for a pure uniform change
+    }
+
+    // NOT YET SETTLED (churn-in entrance) — the churn glyphs animate every frame on their own internal clock regardless of
+    // scale/op/drift (both pinned at neutral here anyway, since e is 0 before wmExitStart), so always redraw — unchanged from
+    // the original per-frame behavior for this phase. The shader-side uniforms stay neutral (1,0,1): the CPU bake below already
+    // applies scale/drift/op directly to pixels, so the shader must NOT also transform it (would double-apply).
+    bakedSettled = false; wmTexStale = false; wmTexNeedsUpload = true;   // this branch always redraws the CPU canvas below, so the texture always needs a fresh upload — matches the original's unconditional churn-frame behavior
+    wmScaleV = 1; wmDriftV = 0; wmOpV = 1;
     wmctx.clearRect(0, 0, wmc.width, wmc.height);
     if(op <= 0.002) return true;                                    // fully scattered + remnant cleared — nothing to draw
     const fs = Math.round(wmc.height * 0.11);                       // KEEP: wordmark size
@@ -215,7 +269,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1;
   function frame(){
     const resized = fit();
-    if(resized){ lastWmOp = -1; lastWmScale = -1; lastWmDrift = -1; }            // a wmc/earth realloc cleared the wordmark canvas → force one redraw+upload (also re-bakes it crisp after the settle resize)
+    if(resized){ bakedSettled = false; }            // a wmc/earth realloc cleared the wordmark canvas → force one re-bake+upload (also re-bakes it crisp after the settle resize)
     let dirty = resized;
     if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; dirty = true; } }   // earthC only changes when the frame/blend moves or on resize
     if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
@@ -231,9 +285,10 @@ export function createDiveLens({ canvas, dir, count, settings }){
       try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
         if(earthDirty){ earthDirty = false; gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); } } catch(e){}
       try { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wmTex);
-        if(wmChanged){ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); } } catch(e){}
-      gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));
+        if(wmTexNeedsUpload){ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); } } catch(e){}   // was gated on wmChanged (texture-content OR uniform change) — now gated on the content-only flag, so the wordmark-exit window's continuous scale/drift/op change no longer forces a full-resolution re-upload every frame
+      if(resized || !painted) gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));   // only changes on resize — was rewritten every dirty frame (i.e. every frame of the wordmark-exit window) for an unchanging value
       gl.uniform1f(uBgBlur, bgBlur); gl.uniform1f(uWmBlur, wmBlur); gl.uniform1f(uWmDiss, wmDiss);
+      gl.uniform1f(uWmScaleU, wmScaleV); gl.uniform1f(uWmDriftU, wmDriftV); gl.uniform1f(uWmOpU, wmOpV);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       lastBgBlur = bgBlur; lastWmBlur = wmBlur; lastWmDiss = wmDiss;
       if(!painted){ painted = true; canvas.style.opacity = '1'; }                         // first real paint — fade the canvas in over the poster (CSS transition)
@@ -265,15 +320,15 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // recreating — so this just rebuilds the program/buffers/textures, forces one full re-upload of the already-decoded content, and
   // resumes the loop. No re-fetch, no re-decode, no visible re-scramble.
   canvas.addEventListener('webglcontextrestored', () => {
-    setupGL(); earthDirty = true; lastWmOp = -1; lastWmScale = -1; lastWmDrift = -1; needsFit = true; start(); }, false);
+    setupGL(); earthDirty = true; wmTexStale = true; needsFit = true; start(); }, false);   // wmTexStale (not bakedSettled=false): wmc's pixels survive a WebGL-only context loss, so this only needs a re-upload, not a re-bake
   setFrame(0); start();
 
   return {
     setProgress(p){ progress = Math.max(0, Math.min(1, p)); setFrame(progress); if(!running) start(); },
     scrambleIn(){ wmDecode.scrambleIn(performance.now());
       setTimeout(runPrefetchRest, 3200);   // decode is ~2.7s; fallback if the settle-trip is missed (e.g. reduced motion never bakes) — fill the rest of the cache anyway
-      lastWmOp = -1; lastWmScale = -1; },
-    setSub(s){ wmDecode.setSub(s); lastWmOp = -1; lastWmScale = -1; },   // relocalise slogan; force drawWordmark to redraw+re-upload next frame
+      bakedSettled = false; },
+    setSub(s){ wmDecode.setSub(s); bakedSettled = false; },   // relocalise slogan; force drawWordmark to re-bake+re-upload next frame
     redraw(){},
     pause: stop,
     resume: start,
@@ -281,6 +336,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     get warm(){ for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++){ if(!isReady(frames[k])) return false; } return true; },   // true once the first WARM_PRELOAD Image objects are decoded + drawable — stronger than HTTP cache presence (which can silently fail or be incomplete)
     get cached(){ return prefetchDone; },   // true once ALL count frames have been HTTP-prefetched (the whole dive is in cache → the fast scrub never network-stalls). The loader gates on this via the 'hero' signal.
     get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
+    get wmSettled(){ return wmDecode.settled; },   // true once the wordmark's entrance churn has locked + baked to its cheap drawImage path (~2.3s after scrambleIn). cinematic.js's first-glide hold also waits on this — releasing into the wordmark-exit window WHILE still mid-churn forces the expensive per-glyph render path on every frame of that window (owner-reported stutter)
     destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       try { gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } catch(e){} }

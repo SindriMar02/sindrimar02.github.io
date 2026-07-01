@@ -255,6 +255,7 @@ function runGlide(targetY, dur, ease){
     const k = clamp((now - t0) / (dur * 1000), 0, 1);
     if(k < 1){                                                                       // EASE phase: drive the eased position, overriding any momentum Lenis adds
       if(L && L.scrollTo) L.scrollTo(startY + span * ease(k), { immediate: true });
+      if(typeof ScrollTrigger !== 'undefined') ScrollTrigger.update();                // run paint() deterministically inside THIS rAF callback (was: relying on GSAP's own separately-scheduled ticker rAF to pick up the scrollTo, an unordered race between two independent loops — the SETTLE phase below already does this for the same reason)
       glideRaf = requestAnimationFrame(step);
     } else {                                                                         // SETTLE phase: pin the exact stop + keep feeding the scrub so it coasts to rest without drift
       if(L && L.scrollTo) L.scrollTo(targetY, { immediate: true });
@@ -276,12 +277,16 @@ function doGestureAdvance(dir){
   else { for(let i = segTargets.length - 1; i >= 0; i--){ if(segTargets[i] < p - 0.012){ target = segTargets[i]; break; } } }
   if(target == null) return;                                  // already at the final stop in that direction
   const descentMove = (dir > 0 && p < SPLIT - 0.01 && target >= SPLIT - 0.01) || (dir < 0 && target < 0.01);
-  // HOLD the first descent glide until the dive is FULLY CACHED (dSeq.cached, not just warm-50): the loader now lifts EARLY (at warm) so
-  // the site is usable fast, and the rest of the dive streams in the background — so the glide itself is what must wait for the full cache,
-  // else the fast 356-frame scrub out-runs the download and the frame-exact draw STICKS. The resting hero (+ working nav) is the hold UI;
-  // the scroll intent is queued and auto-fires the instant the dive is cached. (On a normal connection the cache finishes during the few
-  // seconds the viewer reads the hero, so there's no perceptible hold; on a slow one it waits behind the hero, then an 8s fallback frees it.)
-  if(descentMove && dir > 0 && !warmForce && dSeq && dSeq.cached === false){ descentQueued = dir; armWarmFire(); return; }
+  // HOLD the first descent glide until the dive is FULLY CACHED (dSeq.cached, not just warm-50) AND the wordmark's entrance decode has
+  // SETTLED (dSeq.wmSettled): the loader now lifts EARLY (at warm) so the site is usable fast, and the rest of the dive streams in the
+  // background — so the glide itself is what must wait for the full cache, else the fast 356-frame scrub out-runs the download and the
+  // frame-exact draw STICKS. The wmSettled half (owner-confirmed, audit-triangulated by 3 lenses): on a fast connection dSeq.cached can
+  // finish well before the ~2.3s wordmark decode does — releasing the glide that early forces the wordmark's EXPENSIVE per-glyph churn
+  // render path (not the cheap locked-bitmap drawImage) through the entire wordmark-exit window, which read as stutter "sometimes" (a
+  // race, not a constant cost — exactly the reported pattern). The resting hero (+ working nav) is the hold UI; the scroll intent is
+  // queued and auto-fires the instant both are ready. (On a normal connection both finish during the few seconds the viewer reads the
+  // hero, so there's no perceptible hold; on a slow one it waits behind the hero, then an 8s fallback frees it.)
+  if(descentMove && dir > 0 && !warmForce && dSeq && (dSeq.cached === false || dSeq.wmSettled === false)){ descentQueued = dir; armWarmFire(); return; }
   const dur = descentMove ? 3.6 : 2.4;                        // SLOW + smooth: the full dive glides over 3.6s (bezier ease → jerk-free stop); each chapter over 2.4s — slower so the footage between chapters reads
   snapAnim = true;
   runGlide(st.start + target * (st.end - st.start), dur, easeSlide);
@@ -291,7 +296,7 @@ function armWarmFire(){
   if(warmRaf) return;                                         // already waiting
   const t0 = performance.now();
   const tick = () => {
-    if(dSeq && dSeq.cached === false && performance.now() - t0 < 8000){ warmRaf = requestAnimationFrame(tick); return; }
+    if(dSeq && (dSeq.cached === false || dSeq.wmSettled === false) && performance.now() - t0 < 8000){ warmRaf = requestAnimationFrame(tick); return; }
     warmRaf = 0;
     if(performance.now() - t0 >= 8000) warmForce = true;      // don't hang forever on a stalled fetch — let it run (load()'s retry + the forward-decode window cover stragglers)
     const d = descentQueued; descentQueued = 0;
