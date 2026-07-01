@@ -73,17 +73,30 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // wmBlurMax = soft-focus on the wordmark as it dissolves. All tunable from cinematic.js.
   const cfg = Object.assign({ bgBlurMax: 0.0016, bgSharpEnd: 0.45, wmBlurMax: 0.0030, wmExitStart: 0.08, wmExitEnd: 0.30 }, settings || {});
   let gl = null;
-  // desynchronized:true — THE fix for the "first scroll (descent) isn't smooth, every scroll after (story) is" report. Root cause found by
-  // live Chrome profiling (Long-Animation-Frames API + per-frame timing, tab kept foreground so rAF ran at 60fps): the descent glide ran at
-  // 33ms/frame (30fps) while the identically-sized, identically-scrolled STORY canvas ran at 16.7ms (60fps). The ONLY difference is WebGL vs
-  // 2D-canvas: a 2D canvas has a fast compositor-blit path, but a normal WebGL canvas must SYNC its backbuffer to the page compositor every
-  // frame, and during a Lenis/ScrollTrigger scroll that sync back-pressures the main thread (~+16ms). desynchronized:true opts into Chrome's
-  // low-latency canvas path, which bypasses that compositor sync → measured descent glide dropped 33ms→16.7ms (30→60fps), matching the story.
+  // desynchronized:true — THE fix for the "first scroll (descent) isn't smooth, every scroll after (story) is" report ON CHROME. Root cause
+  // found by live Chrome profiling (Long-Animation-Frames API + per-frame timing, tab kept foreground so rAF ran at 60fps): the descent glide
+  // ran at 33ms/frame (30fps) while the identically-sized, identically-scrolled STORY canvas ran at 16.7ms (60fps). The ONLY difference is
+  // WebGL vs 2D-canvas: a 2D canvas has a fast compositor-blit path, but a normal WebGL canvas must SYNC its backbuffer to the page compositor
+  // every frame, and during a Lenis/ScrollTrigger scroll that sync back-pressures the main thread (~+16ms). desynchronized:true opts into
+  // Chrome's low-latency canvas path, which bypasses that sync → measured descent glide dropped 33ms→16.7ms (30→60fps), matching the story.
   // Zero visual change (it only affects present latency, not pixels). It was NOT: decode-starvation (0 holds), texture upload (texSubImage2D
   // ~0ms), fragment shader (~0ms), fill-rate (DPR-1 didn't help), MSAA, or blend/backdrop overlays — all ruled out by measurement.
-  // Supporting keepers (each correct, though not the fix on their own): antialias:false (fullscreen quad has no geometric edges for MSAA to
-  // smooth → the resolve pass was pure waste), alpha:false (opaque, no per-frame alpha composite), high-performance GPU preference.
-  try { gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance', desynchronized: true }); } catch(e){}
+  //
+  // SAFARI IS DIFFERENT — a later report ("smooth in Chrome, glitches every time in Safari") sent us back to research these same flags
+  // specifically for WebKit. Both are inert-or-harmful there, never helpful: `desynchronized` has ZERO WebKit support for the WebGL context
+  // path (caniuse: unsupported on every Safari/iOS-Safari version — silently ignored, not harmful, just dead weight); `powerPreference:
+  // 'high-performance'` is a proven WebKit no-op on macOS (WebKit bug 202834, closed WONTFIX — ANGLE never calls CGLSetVirtualScreen, so the
+  // GPU never actually switches) and has a separate WebKit regression on iOS 15.5+ where requesting it can make texture uploads SLOWER via a
+  // stuck alwaysPreferStagedTextureUploads flag. Safari's real per-frame WebGL cost lives in WebKit's ANGLE/Metal backend itself (documented
+  // Safari-15+ regressions in texture/buffer upload cost — WebKit bugs 230749, 239015 — that Chromium's ANGLE build doesn't share), which
+  // these two flags cannot fix either way, so for Safari we now just ask for nothing more than the browser's own default. Chrome's object is
+  // untouched (same flags, same measured fix); antialias:false + alpha:false stay for both (fullscreen quad has no edges for MSAA to smooth,
+  // and the scene is opaque either way).
+  const isSafari = /^((?!chrome|crios|android).)*safari/i.test(navigator.userAgent);
+  const ctxOpts = isSafari
+    ? { alpha: false, antialias: false, premultipliedAlpha: false }
+    : { alpha: false, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance', desynchronized: true };
+  try { gl = canvas.getContext('webgl', ctxOpts); } catch(e){}
   if(!gl) return null;
   canvas.style.opacity = '0';   // stay transparent until the FIRST frame actually paints (the CSS poster behind shows through) → no black flash on load/refresh
 
