@@ -159,19 +159,26 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // with zero network/decode contention. An early scroll is still warm-gated (cinematic.js) so the dive only scrubs once cached; the
   // bulk streams in during the seconds the viewer reads the resting hero. Owner-directed: prefer a longer load over any entry lag.
   let prefetchStarted = false;
-  // CONCURRENCY (was 12, uncoordinated with the load()/MAX_INFLIGHT gate above — combined worst case could reach ~20 simultaneous
-  // network requests, exactly when a slow-connection visitor's glide gets force-released into the wordmark-exit window by the 8s
-  // armWarmFire failsafe while this is still pumping). Lowered to 6 so the combined ceiling stays reasonable, and tags requests
-  // low-priority so this background cache-warm never outranks a frame actively needed on screen — matching the pattern
-  // canvas-seq.js's prefetchAll() already uses for the story sequence. (NOT deduping against an already-claimed `frames[i-1]`
-  // here: load()'s "already claimed" branch resolves onDone IMMEDIATELY without waiting for that image to actually finish, so
-  // treating it as "fetched" here would mark prefetchDone/cached true before that frame is genuinely ready — a correctness
-  // regression for the exact safety guarantee the scroll-gate in cinematic.js depends on. The browser's own HTTP cache already
-  // coalesces identical concurrent requests, so the minor duplicate-bookkeeping cost here is intentional, not an oversight.)
+  // REBUILT (owner: "first scroll isn't smooth, every scroll after is" — persisted even after the GPU-idle fix). Root cause: this used
+  // to be a raw fetch() pass — it warms the HTTP byte cache but NEVER actually decodes a frame into a ready-to-draw bitmap. dSeq.cached
+  // (the gate that releases the first glide) was true the instant BYTES were downloaded, not once frames were genuinely decode-ready —
+  // a materially weaker guarantee than its name implies. The descent is the ONLY glide that ever touches most of these 356 frames for
+  // the FIRST time; every later chapter-to-chapter glide reuses story-frames the browser already decoded during earlier scrolling. At
+  // the glide's peak velocity (~160 frames/sec, the bezier ease's steep midsection) the 72-frame forward lookahead window gets consumed
+  // faster than 6-8 concurrent WebP decodes can clear it, so coverDraw() repeatedly hits an undecoded frame and holds — visible judder,
+  // concentrated exactly in the fast part of the FIRST glide only. Fix: actually decode every frame here (im.decode(), not just fetch),
+  // store it in frames[] so coverDraw() finds it instantly ready, and only mark prefetchDone once every frame's decode has genuinely
+  // settled — so dSeq.cached now means what it claims. Frames already claimed by the warm set (1-50) are polled for real readiness
+  // instead of counted immediately (load()'s "already claimed" branch resolves without waiting — counting that here would reintroduce
+  // the exact premature-cached bug avoided in the previous concurrency fix).
   function runPrefetchRest(){ if(prefetchStarted) return; prefetchStarted = true;
     let i = 1, inflight = 0;
-    const pump = () => { while(inflight < 6 && i <= count){ const u = srcOf(i++); inflight++;
-        fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
+    const settle = () => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); };
+    const pump = () => { while(inflight < 6 && i <= count){ const k = i++; inflight++;
+        if(frames[k-1]){ const check = () => { if(isReady(frames[k-1])) settle(); else setTimeout(check, 50); }; check(); continue; }
+        const im = new Image(); im.decoding = 'async'; im.src = srcOf(k); frames[k-1] = im;
+        const onErr = () => { frames[k-1] = undefined; settle(); };   // clear the slot on failure — leaving the broken Image there would block load()'s own retry-with-backoff from ever firing later (its "already claimed" guard would just see this dead object and skip)
+        if(im.decode) im.decode().then(settle).catch(onErr); else { im.onload = settle; im.onerror = onErr; } } };
     pump(); }
   // safety net: if no reveal/settle ever fires (e.g. session-cached skip under reduced motion), still fill the cache shortly after load
   window.addEventListener('load', () => setTimeout(runPrefetchRest, 4500), { once: true });
