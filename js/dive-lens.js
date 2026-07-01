@@ -73,7 +73,17 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // wmBlurMax = soft-focus on the wordmark as it dissolves. All tunable from cinematic.js.
   const cfg = Object.assign({ bgBlurMax: 0.0016, bgSharpEnd: 0.45, wmBlurMax: 0.0030, wmExitStart: 0.08, wmExitEnd: 0.30 }, settings || {});
   let gl = null;
-  try { gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false, powerPreference: 'high-performance' }); } catch(e){}
+  // desynchronized:true — THE fix for the "first scroll (descent) isn't smooth, every scroll after (story) is" report. Root cause found by
+  // live Chrome profiling (Long-Animation-Frames API + per-frame timing, tab kept foreground so rAF ran at 60fps): the descent glide ran at
+  // 33ms/frame (30fps) while the identically-sized, identically-scrolled STORY canvas ran at 16.7ms (60fps). The ONLY difference is WebGL vs
+  // 2D-canvas: a 2D canvas has a fast compositor-blit path, but a normal WebGL canvas must SYNC its backbuffer to the page compositor every
+  // frame, and during a Lenis/ScrollTrigger scroll that sync back-pressures the main thread (~+16ms). desynchronized:true opts into Chrome's
+  // low-latency canvas path, which bypasses that compositor sync → measured descent glide dropped 33ms→16.7ms (30→60fps), matching the story.
+  // Zero visual change (it only affects present latency, not pixels). It was NOT: decode-starvation (0 holds), texture upload (texSubImage2D
+  // ~0ms), fragment shader (~0ms), fill-rate (DPR-1 didn't help), MSAA, or blend/backdrop overlays — all ruled out by measurement.
+  // Supporting keepers (each correct, though not the fix on their own): antialias:false (fullscreen quad has no geometric edges for MSAA to
+  // smooth → the resolve pass was pure waste), alpha:false (opaque, no per-frame alpha composite), high-performance GPU preference.
+  try { gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance', desynchronized: true }); } catch(e){}
   if(!gl) return null;
   canvas.style.opacity = '0';   // stay transparent until the FIRST frame actually paints (the CSS poster behind shows through) → no black flash on load/refresh
 
@@ -159,26 +169,15 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // with zero network/decode contention. An early scroll is still warm-gated (cinematic.js) so the dive only scrubs once cached; the
   // bulk streams in during the seconds the viewer reads the resting hero. Owner-directed: prefer a longer load over any entry lag.
   let prefetchStarted = false;
-  // REBUILT (owner: "first scroll isn't smooth, every scroll after is" — persisted even after the GPU-idle fix). Root cause: this used
-  // to be a raw fetch() pass — it warms the HTTP byte cache but NEVER actually decodes a frame into a ready-to-draw bitmap. dSeq.cached
-  // (the gate that releases the first glide) was true the instant BYTES were downloaded, not once frames were genuinely decode-ready —
-  // a materially weaker guarantee than its name implies. The descent is the ONLY glide that ever touches most of these 356 frames for
-  // the FIRST time; every later chapter-to-chapter glide reuses story-frames the browser already decoded during earlier scrolling. At
-  // the glide's peak velocity (~160 frames/sec, the bezier ease's steep midsection) the 72-frame forward lookahead window gets consumed
-  // faster than 6-8 concurrent WebP decodes can clear it, so coverDraw() repeatedly hits an undecoded frame and holds — visible judder,
-  // concentrated exactly in the fast part of the FIRST glide only. Fix: actually decode every frame here (im.decode(), not just fetch),
-  // store it in frames[] so coverDraw() finds it instantly ready, and only mark prefetchDone once every frame's decode has genuinely
-  // settled — so dSeq.cached now means what it claims. Frames already claimed by the warm set (1-50) are polled for real readiness
-  // instead of counted immediately (load()'s "already claimed" branch resolves without waiting — counting that here would reintroduce
-  // the exact premature-cached bug avoided in the previous concurrency fix).
+  // Warm the HTTP byte-cache for the whole sequence at low priority (6 in flight, coordinated with the load()/MAX_INFLIGHT gate). This
+  // does NOT hold decoded bitmaps — it just fills the browser cache so the windowed loader (setFrame's load()) creates + decodes each
+  // frame instantly-from-cache during the glide, then evicts (bounded memory; the alternative — decoding+holding all 356 frames here —
+  // was tried and reverted: it risked ~hundreds of decoded 1920×1080 bitmaps resident at once, and profiling proved the first-glide lag
+  // was the WebGL compositor-sync, not decode starvation — coverDraw never once held on an unready frame in the live trace).
   function runPrefetchRest(){ if(prefetchStarted) return; prefetchStarted = true;
     let i = 1, inflight = 0;
-    const settle = () => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); };
-    const pump = () => { while(inflight < 6 && i <= count){ const k = i++; inflight++;
-        if(frames[k-1]){ const check = () => { if(isReady(frames[k-1])) settle(); else setTimeout(check, 50); }; check(); continue; }
-        const im = new Image(); im.decoding = 'async'; im.src = srcOf(k); frames[k-1] = im;
-        const onErr = () => { frames[k-1] = undefined; settle(); };   // clear the slot on failure — leaving the broken Image there would block load()'s own retry-with-backoff from ever firing later (its "already claimed" guard would just see this dead object and skip)
-        if(im.decode) im.decode().then(settle).catch(onErr); else { im.onload = settle; im.onerror = onErr; } } };
+    const pump = () => { while(inflight < 6 && i <= count){ const u = srcOf(i++); inflight++;
+        fetch(u, { priority: 'low', signal: prefetchCtrl ? prefetchCtrl.signal : undefined }).then(r => r.arrayBuffer()).catch(() => {}).then(() => { inflight--; fetched++; if(fetched >= count) prefetchDone = true; pump(); }); } };
     pump(); }
   // safety net: if no reveal/settle ever fires (e.g. session-cached skip under reduced motion), still fill the cache shortly after load
   window.addEventListener('load', () => setTimeout(runPrefetchRest, 4500), { once: true });
@@ -273,10 +272,11 @@ export function createDiveLens({ canvas, dir, count, settings }){
     return resized;
   }
 
-  let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1, lastDrawAt = 0;
+  let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1;
+  let texAlloc = false, wmTexAlloc = false;   // false → next upload must (re)allocate the GPU texture store via texImage2D; true → update in place via texSubImage2D (avoids re-allocating the whole store every frame — best-practice, though the real first-glide fix was the desynchronized context flag)
   function frame(){
     const resized = fit();
-    if(resized){ bakedSettled = false; }            // a wmc/earth realloc cleared the wordmark canvas → force one re-bake+upload (also re-bakes it crisp after the settle resize)
+    if(resized){ bakedSettled = false; texAlloc = false; wmTexAlloc = false; }            // a wmc/earth realloc cleared the wordmark canvas → force one re-bake+upload; the GPU textures also need a fresh texImage2D at the new size before texSubImage2D can update them (also re-bakes it crisp after the settle resize)
     let dirty = resized;
     if(curF !== lastDrawnF || resized){ if(coverDraw()){ lastDrawnF = curF; earthDirty = true; dirty = true; } }   // earthC only changes when the frame/blend moves or on resize
     if(!painted && lastDrawnF < 0 && !earthDirty){ if(running) raf = requestAnimationFrame(frame); return; }   // nothing has ever drawn (first frame not ready) — hold the canvas transparent so the CSS poster shows (no black flash); skip the GL draw
@@ -288,21 +288,15 @@ export function createDiveLens({ canvas, dir, count, settings }){
     const wmBlur = cfg.wmBlurMax * sstep(cfg.wmExitStart + 0.06, cfg.wmExitEnd, progress);
     const wmDiss = e;
     if(bgBlur !== lastBgBlur || wmBlur !== lastWmBlur || wmDiss !== lastWmDiss) dirty = true;
-    // GPU KEEP-ALIVE (owner: "first scroll isn't smooth, every scroll after is") — the idle-skip below is a genuine perf win (0 GPU
-    // draws at rest) but it means the WebGL pipeline can sit fully idle for however long the viewer reads the resting hero before
-    // their first scroll. This is the ONLY glide that touches WebGL at all — every later chapter-to-chapter glide scrubs the story on
-    // a plain 2D canvas, which has no comparable "pipeline" to go cold. GPU drivers/compositors commonly downclock or evict resources
-    // during real idle stretches, so the first scroll can pay a one-time wake-up cost that no later glide ever hits — matching the
-    // reported pattern exactly. Force one cheap draw at least every 800ms even at rest so the pipeline never goes fully cold; ~1.25
-    // draws/sec is negligible GPU cost, nowhere near the "redraw every rAF" cost this idle-skip was originally added to remove.
-    const now = performance.now();
-    if(!dirty && now - lastDrawAt > 800) dirty = true;
     if(dirty || !painted){                                                       // idle-skip: at rest (no scroll, decode settled) nothing changes → no GPU draw (was: redraw every rAF for the now-removed wobble)
-      lastDrawAt = now;
       try { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
-        if(earthDirty){ earthDirty = false; gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); } } catch(e){}
+        if(earthDirty){ earthDirty = false;
+          if(texAlloc){ gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGB, gl.UNSIGNED_BYTE, earthC); }   // FAST PATH — update pixels in the existing GPU allocation instead of reallocating the whole texture store every frame (best practice)
+          else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, earthC); texAlloc = true; } } } catch(e){ texAlloc = false; }   // (re)allocate once at this size, then sub-update; on any GL error, force a fresh allocation next frame
       try { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wmTex);
-        if(wmTexNeedsUpload){ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); } } catch(e){}   // was gated on wmChanged (texture-content OR uniform change) — now gated on the content-only flag, so the wordmark-exit window's continuous scale/drift/op change no longer forces a full-resolution re-upload every frame
+        if(wmTexNeedsUpload){                                                             // gated on the content-only flag: the wordmark-exit window's continuous scale/drift/op change no longer forces any re-upload (those ride shader uniforms)
+          if(wmTexAlloc){ gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, wmc); }
+          else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); wmTexAlloc = true; } } } catch(e){ wmTexAlloc = false; }
       if(resized || !painted) gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));   // only changes on resize — was rewritten every dirty frame (i.e. every frame of the wordmark-exit window) for an unchanging value
       gl.uniform1f(uBgBlur, bgBlur); gl.uniform1f(uWmBlur, wmBlur); gl.uniform1f(uWmDiss, wmDiss);
       gl.uniform1f(uWmScaleU, wmScaleV); gl.uniform1f(uWmDriftU, wmDriftV); gl.uniform1f(uWmOpU, wmOpV);
@@ -337,7 +331,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // recreating — so this just rebuilds the program/buffers/textures, forces one full re-upload of the already-decoded content, and
   // resumes the loop. No re-fetch, no re-decode, no visible re-scramble.
   canvas.addEventListener('webglcontextrestored', () => {
-    setupGL(); earthDirty = true; wmTexStale = true; needsFit = true; start(); }, false);   // wmTexStale (not bakedSettled=false): wmc's pixels survive a WebGL-only context loss, so this only needs a re-upload, not a re-bake
+    setupGL(); earthDirty = true; wmTexStale = true; texAlloc = false; wmTexAlloc = false; needsFit = true; start(); }, false);   // setupGL() makes brand-new (unallocated) textures → the alloc flags must reset so the next upload re-allocs via texImage2D before any texSubImage2D. wmTexStale (not bakedSettled=false): wmc's pixels survive a WebGL-only context loss, so this only needs a re-upload, not a re-bake
   setFrame(0); start();
 
   return {
