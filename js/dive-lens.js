@@ -19,10 +19,17 @@ const VS = 'attribute vec2 p; varying vec2 vUv; void main(){ vUv=vec2(p.x*0.5+0.
 // radar→Earth morph and no longer fits the coast→ship footage). The footage sits under a small depth-of-field blur so the ice
 // wordmark pops; the blur racks to ZERO before the seam (the story frames are sharp → no blurry→sharp snap). The wordmark gets
 // its own soft-focus blur only as it dissolves out. Both blurs are a normalised 9-tap tent, isotropic in screen space via uAspect.
-const FS = [
+// buildFS(sub): sub=true → the SUBLIMATION exit (the DEFAULT since 2026-07-01); sub=false → the legacy fleck-shatter
+// exit (?exit=shatter; output identical to the original FS string). Sublimation: instead of the per-cell fleck
+// scatter, a fine ice-grain noise field (uNoise — the
+// SAME 512px field the 2D compositor bakes its masks from, so both backends erode identically) eats the letterforms at
+// pixel level while the whole mark lifts as one body (uWmDriftN) and soft-focuses out. Sampled at wmUv (not vUv) so the
+// grain RIDES the mark through its exit scale/lift — matching the 2D path, which erodes in source space before transforming.
+const buildFS = (sub) => [
   'precision highp float;',
   'uniform sampler2D uTex; uniform sampler2D uWM; uniform float uAspect; uniform float uBgBlur; uniform float uWmBlur; uniform float uWmDiss;',
   'uniform float uWmScale; uniform float uWmDriftN; uniform float uWmOp;',   // GPU-side wordmark zoom/lift/fade — was CPU-rasterized into wmc + re-uploaded every frame of the exit window (owner-reported stutter); now the bake is static once settled and only these 3 scalars change per frame
+  ...(sub ? ['uniform sampler2D uNoise; uniform float uNScale;'] : []),      // sublimation only: the shared ice-grain field + device-px→texel scale
   'varying vec2 vUv;',
   'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }',
   'vec3 blur3(vec2 uv, float r){',
@@ -54,6 +61,13 @@ const FS = [
   '  vec2 wmAnchor = vec2(0.5, 0.36);',
   '  vec2 wmUv = wmAnchor + (vUv - wmAnchor - vec2(0.0, uWmDriftN)) / uWmScale;',
   '  if(uWmDiss > 0.001){',
+  ...(sub ? [
+  '    float n = texture2D(uNoise, wmUv * vec2(uAspect, 1.0) * uNScale).r;',   // ice-grain threshold field, anchored to the letterforms (see buildFS note)
+  '    wm = blur4(wmUv, uWmBlur);',                                            // no per-fleck remap — the mark lifts as ONE body via uWmDriftN while the grain erodes it
+  '    float keep = 1.0 - smoothstep(n - 0.06, n + 0.06, uWmDiss);',           // pixel-level erode once the dissolve front passes the grain threshold
+  '    wm.a *= keep;',
+  '    wm.rgb += vec3(0.05, 0.13, 0.20) * wm.a * uWmDiss;',                    // same icy breath as the shatter — surviving ink cools toward signal-cyan
+  ] : [
   '    vec2 cellN = vec2(uAspect, 1.0) * 170.0;',          // square fleck cells (~7px); aspect keeps them square in screen space
   '    vec2 cell  = floor(vUv * cellN);',
   '    float n  = hash(cell);',                            // per-cell vanish threshold (low n leaves first → staggered scatter)
@@ -63,6 +77,7 @@ const FS = [
   '    float keep = 1.0 - smoothstep(n - 0.06, n + 0.06, uWmDiss);',   // erode the cell once the dissolve front passes its threshold
   '    wm.a *= keep;',
   '    wm.rgb += vec3(0.05, 0.13, 0.20) * wm.a * uWmDiss;',            // icy spark — surviving flecks brighten toward signal-cyan as they fly off
+  ]),
   '  } else {',
   '    wm = blur4(wmUv, uWmBlur);',
   '  }',
@@ -71,6 +86,38 @@ const FS = [
   '  gl_FragColor = vec4(col, 1.0);',
   '}'
 ].join('\n');
+
+// ── shared ice-grain noise field (?exit=sub only) — generated ONCE, used by BOTH backends ──────────────────────────
+// A 512px-tiling 3-octave value-noise field built from the same sin-hash the shader/2D cell hash uses (deterministic:
+// scrub-back replays identically, and the GL noise TEXTURE is uploaded from the same canvas the 2D masks bake from, so
+// the two backends erode the exact same pattern). Feature mix: 64px patches (erosion happens in organic clumps) +
+// 8px + 4px grain (crisp frost-crystal edges). Histogram stretched so the threshold sweep uses the full 0..1 band.
+const NSIZE = 512;
+let _iceNoise = null;
+function iceNoise(){
+  if(_iceNoise) return _iceNoise;
+  const N = NSIZE, data = new Float32Array(N * N);
+  const fr = (x) => x - Math.floor(x);
+  const h2 = (x, y) => fr(Math.sin(x * 127.1 + y * 311.7) * 43758.5453123);
+  const oct = (px, py, P, seed) => {                       // wrapped-lattice value noise, period NSIZE/P px, smoothstep-interpolated
+    const u = px * P / N, v = py * P / N;
+    const x0 = Math.floor(u), y0 = Math.floor(v), fx = u - x0, fy = v - y0;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const xa = x0 % P, ya = y0 % P, xb = (x0 + 1) % P, yb = (y0 + 1) % P;
+    const a = h2(xa + seed, ya - seed), b = h2(xb + seed, ya - seed), c = h2(xa + seed, yb - seed), d = h2(xb + seed, yb - seed);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  };
+  for(let y = 0; y < N; y++){ for(let x = 0; x < N; x++){
+    let n = 0.50 * oct(x, y, 8, 0) + 0.35 * oct(x, y, 64, 91) + 0.15 * oct(x, y, 128, 173);
+    n = (n - 0.5) * 2.1 + 0.5;                             // stretch the bell-shaped 3-octave sum back toward full range (clipped tails just erode first/linger last — same as the shatter's hash extremes)
+    data[y * N + x] = Math.min(0.999, Math.max(0.001, n));
+  } }
+  const canvas = document.createElement('canvas'); canvas.width = N; canvas.height = N;
+  const cx = canvas.getContext('2d'), id = cx.createImageData(N, N), px = id.data;
+  for(let i = 0; i < N * N; i++){ const v = (data[i] * 255) | 0; px[i * 4] = v; px[i * 4 + 1] = v; px[i * 4 + 2] = v; px[i * 4 + 3] = 255; }
+  cx.putImageData(id, 0, 0);
+  return (_iceNoise = { data, canvas });
+}
 
 export function createDiveLens({ canvas, dir, count, settings }){
   // FOCUS-PULL knobs (replaces the membrane ampMul/ctr/wid/wob*): bgBlurMax = resting background softness (uv.x units, ~px/canvasW);
@@ -98,6 +145,12 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // the visible surface becomes the same fast canvas type the story already proves out. A/B override on any browser: ?dive=2d forces the 2D
   // compositor, ?dive=gl forces WebGL (useful for comparing the two live on Safari itself).
   const qsDive = (() => { try { return new URLSearchParams(location.search).get('dive'); } catch(e){ return null; } })();
+  // Wordmark exit: SUBLIMATION (fine ice-grain pixel erode + whole-mark lift) is the DEFAULT — owner-picked over the old
+  // fleck shatter after a live A/B (2026-07-01). ?exit=shatter restores the fleck scatter for comparison. Works on both
+  // backends; on the 2D compositor sublimation replaces the per-cell drawImage scatter (thousands of calls/frame at
+  // onset) with ~6 blits/frame — the descent's heaviest 2D moment becomes its cheapest.
+  const qsExit = (() => { try { return new URLSearchParams(location.search).get('exit'); } catch(e){ return null; } })();
+  const subExit = qsExit !== 'shatter';
   const isSafari = /^((?!chrome|crios|android).)*safari/i.test(navigator.userAgent);
   let use2D = qsDive === '2d' || (qsDive !== 'gl' && isSafari);
   let gl = null;
@@ -114,12 +167,13 @@ export function createDiveLens({ canvas, dir, count, settings }){
   }
   canvas.style.opacity = '0';   // stay transparent until the FIRST frame actually paints (the CSS poster behind shows through) → no black flash on load/refresh
 
+  const FS = buildFS(subExit);   // shatter (default) or sublimation (?exit=sub) fragment shader — chosen once at creation
   function sh(t, src){ const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
     if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error('[dive-lens]', gl.getShaderInfoLog(s)); return s; }
   function mkTex(){ const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); return t; }
-  let prog, quad, loc, tex, wmTex, uA, uBgBlur, uWmBlur, uWmDiss, uWmScaleU, uWmDriftU, uWmOpU;
+  let prog, quad, loc, tex, wmTex, uA, uBgBlur, uWmBlur, uWmDiss, uWmScaleU, uWmDriftU, uWmOpU, noiseTex = null, uNScaleU = null;
   function setupGL(){                                         // (re)create every GL resource — called once below AND again on webglcontextrestored
     prog = gl.createProgram();
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
@@ -131,7 +185,16 @@ export function createDiveLens({ canvas, dir, count, settings }){
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'uWM'), 1);
     uA = gl.getUniformLocation(prog, 'uAspect'); uBgBlur = gl.getUniformLocation(prog, 'uBgBlur'); uWmBlur = gl.getUniformLocation(prog, 'uWmBlur'); uWmDiss = gl.getUniformLocation(prog, 'uWmDiss');
-    uWmScaleU = gl.getUniformLocation(prog, 'uWmScale'); uWmDriftU = gl.getUniformLocation(prog, 'uWmDriftN'); uWmOpU = gl.getUniformLocation(prog, 'uWmOp'); }
+    uWmScaleU = gl.getUniformLocation(prog, 'uWmScale'); uWmDriftU = gl.getUniformLocation(prog, 'uWmDriftN'); uWmOpU = gl.getUniformLocation(prog, 'uWmOp');
+    if(subExit){                                              // sublimation exit: upload the shared ice-grain field ONCE, parked on unit 2 (frame() only ever rebinds units 0/1)
+      noiseTex = gl.createTexture(); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);   // 512 is POT so REPEAT is legal in WebGL1; LINEAR sampling softens the threshold band for free
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, iceNoise().canvas);
+      gl.uniform1i(gl.getUniformLocation(prog, 'uNoise'), 2);
+      uNScaleU = gl.getUniformLocation(prog, 'uNScale');
+      gl.activeTexture(gl.TEXTURE0);
+    } }
   if(gl) setupGL();
 
   // ── self-contained frame loader (windowed decode + eviction; mirrors canvas-seq but draws cover-fit to our earthC) ──
@@ -238,9 +301,11 @@ export function createDiveLens({ canvas, dir, count, settings }){
     // that lift and scatter upward (the per-cell erode/rise/spark is in the shader via uWmDiss). Here we only keep the TEXTURE solid for
     // the shader to disintegrate (so flecks carry real letter pixels), with a tiny global scale+lift; the master alpha holds ~1 until the
     // very end then clears the last remnant. No 43× zoom-tear, no chromatic membrane.
-    const scale = 1 + e * 0.05;                                     // subtle push (the scatter is the event)
-    const op = 1 - sstep(0.82, 1.0, e);                            // hold solid through the scatter, fade only the final remnant
-    const drift = -e * wmc.height * 0.018;                         // tiny global lift (the shader does the per-fleck rise)
+    // sublimation (?exit=sub): no per-fleck rise exists, so the WHOLE mark carries the evaporation motion — stronger lift,
+    // subtler zoom. Shatter (default): the per-fleck scatter is the event, the body barely moves. Both feed the same uniforms.
+    const scale = 1 + e * (subExit ? 0.03 : 0.05);                 // subtle push (the scatter/erode is the event)
+    const op = 1 - sstep(0.82, 1.0, e);                            // hold solid through the exit, fade only the final remnant
+    const drift = -e * wmc.height * (subExit ? 0.045 : 0.018);     // global lift (shatter adds per-fleck rise in the composite)
 
     if(wmDecode.settled){
       // SETTLED — content is a fixed locked bitmap that never changes again on its own; bake it ONCE at a neutral pose (scale=1,
@@ -261,6 +326,10 @@ export function createDiveLens({ canvas, dir, count, settings }){
           wmctx.restore();
         }
         wmTexNeedsUpload = true;
+        if(use2D && subExit && !subPrebaked){ subPrebaked = true;   // sublimation masks: bake off the hot path, one per idle tick, while the viewer reads the resting hero (draw2DSublime also bakes on demand — this just makes that a no-op)
+          const idle = window.requestIdleCallback ? ((f) => window.requestIdleCallback(f, { timeout: 800 })) : ((f) => setTimeout(f, 180));
+          let k = 0; const step = () => { if(destroyed || k >= SUB_NM) return; try { subPattern(k++); } catch(e){} idle(step); };
+          idle(step); }
       }
       wmScaleV = scale; wmDriftV = drift / wmc.height; wmOpV = op;
       const uniformsChanged = (wmScaleV !== lastWmScaleV || wmDriftV !== lastWmDriftV || wmOpV !== lastWmOpV);
@@ -332,6 +401,22 @@ export function createDiveLens({ canvas, dir, count, settings }){
   let blurA = null, blurB = null;                           // small downsample ping-pong canvases (blur legs only)
   let wmFxC = null, wmFxCtx = null, cyanC = null, cyanCtx = null, cyanStale = true;   // dissolve source (wmc + spark [+ blur]) and the cyan silhouette, both sized to the padded ink region
   let maskData = null, maskW = 0, maskH = 0, maskStale = true, inkBox = null, srcR = null;
+  // ── sublimation exit (?exit=sub) state — see draw2DSublime ──
+  const SUB_NM = 12;                                        // erosion levels; adjacent-mask alpha-interp approximates the shader's continuous smoothstep sweep
+  let subPats = null, subPrebaked = false, destroyed = false;
+  function subPattern(k){
+    // mask k = the shader's erode amount smoothstep(n-0.06, n+0.06, t_k) baked into a 512px-tiling alpha pattern; per frame
+    // draw2DSublime destination-outs mask idx at full alpha + mask idx+1 at frac — 2 pattern fills replace the fleck loop.
+    subPats = subPats || new Array(SUB_NM);
+    if(subPats[k]) return subPats[k];
+    const nf = iceNoise().data, N = NSIZE, t = k / (SUB_NM - 1);
+    const c = document.createElement('canvas'); c.width = N; c.height = N;
+    const cx = c.getContext('2d'), id = cx.createImageData(N, N), d = id.data;
+    for(let i = 0; i < N * N; i++){ const a = Math.min(1, Math.max(0, (t - (nf[i] - 0.06)) / 0.12));
+      d[i * 4 + 3] = (a * a * (3 - 2 * a) * 255) | 0; }     // rgb stays 0 — only alpha matters to destination-out
+    cx.putImageData(id, 0, 0);
+    return (subPats[k] = cx.createPattern(c, 'repeat'));
+  }
   function bakeScrim(){
     scrimStale = false;
     const W = canvas.width, H = canvas.height, sw = Math.max(2, W >> 2), sh = Math.max(2, H >> 2);   // ¼-res sprite; bilinear upscale of a smooth gradient is lossless to the eye
@@ -370,14 +455,12 @@ export function createDiveLens({ canvas, dir, count, settings }){
         w: Math.min(W - rx, Math.ceil((inkBox.x1 - inkBox.x0 + 5) * cw)), h: Math.min(H - ry, Math.ceil((inkBox.y1 - inkBox.y0 + 5) * ch)) };
     } else srcR = null;
   }
-  function draw2DDissolve(diss, wmBlur){
+  function buildWmFx(diss, wmBlur){
+    // shared by BOTH exits: wmFxC = wmc's ink region + icy spark (the shader's wm.rgb += (.05,.13,.20)·wm.a·uWmDiss — additive
+    // cyan inside the ink, 'lighter' over a silhouette pre-filled with that colour), then the exit soft-focus as a downsample
+    // crossfade (blur4's tent). Returns false when there's no ink to dissolve.
     if(maskStale || !wmDecode.settled) buildInkMask();      // settled: rebuilt only when the bake actually changes; churn-overlap (scrolled mid-entrance): per frame — it's a cell-res readback, trivial
-    if(!inkBox || !srcR) return;
-    const W = canvas.width, H = canvas.height;
-    const sc = wmScaleV, dN = wmDriftV, op = wmOpV;
-    const cellsX = maskW, cellsY = maskH, cw = W / cellsX, ch = H / cellsY;
-    // dissolve source = wmc + icy spark (the shader's wm.rgb += (.05,.13,.20)·wm.a·uWmDiss — additive cyan inside the ink,
-    // 'lighter' over a silhouette pre-filled with that colour), then the exit soft-focus as a downsample crossfade (blur4's tent)
+    if(!inkBox || !srcR) return false;
     if(!wmFxC){ wmFxC = document.createElement('canvas'); wmFxCtx = wmFxC.getContext('2d'); cyanC = document.createElement('canvas'); cyanCtx = cyanC.getContext('2d'); }
     if(wmFxC.width < srcR.w || wmFxC.height < srcR.h){ wmFxC.width = srcR.w; wmFxC.height = srcR.h; cyanC.width = srcR.w; cyanC.height = srcR.h; cyanStale = true; }
     if(cyanStale){ cyanStale = false;
@@ -389,7 +472,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     wmFxCtx.globalCompositeOperation = 'lighter'; wmFxCtx.globalAlpha = diss;
     wmFxCtx.drawImage(cyanC, 0, 0, srcR.w, srcR.h, 0, 0, srcR.w, srcR.h);   // explicit region — the scratch canvases are growth-only sized, so the canvas itself can outlive a shrunken srcR
     wmFxCtx.globalCompositeOperation = 'source-over'; wmFxCtx.globalAlpha = 1;
-    if(wmBlur > 0.0008){                                    // soft-focus the flecks: blur the ink region, crossfade it over the sharp source (approximates the shader's growing tent radius; identical at the window's peak)
+    if(wmBlur > 0.0008){                                    // soft-focus: blur the ink region, crossfade it over the sharp source (approximates the shader's growing tent radius; identical at the window's peak)
       if(!blurA) blurA = document.createElement('canvas');
       const s = 4, bw = Math.max(2, Math.ceil(srcR.w / s)), bh = Math.max(2, Math.ceil(srcR.h / s));
       if(blurA.width < bw || blurA.height < bh){ blurA.width = bw; blurA.height = bh; }
@@ -398,6 +481,32 @@ export function createDiveLens({ canvas, dir, count, settings }){
       wmFxCtx.globalAlpha = Math.min(1, wmBlur / Math.max(1e-6, cfg.wmBlurMax));
       wmFxCtx.drawImage(blurA, 0, 0, bw, bh, 0, 0, srcR.w, srcR.h); wmFxCtx.globalAlpha = 1;
     }
+    return true;
+  }
+  function draw2DSublime(diss, wmBlur){
+    // SUBLIMATION exit — the whole per-cell scatter loop is replaced by: erode wmFxC with two tiled noise-mask pattern fills
+    // (destination-out; mask idx full + mask idx+1 at frac ≈ the shader's continuous smoothstep sweep), then ONE transformed
+    // blit applying the exit scale/lift/fade. ~6 draw calls total vs thousands of per-fleck drawImages in the shatter.
+    if(!buildWmFx(diss, wmBlur)) return;
+    const L = Math.min(1, diss) * (SUB_NM - 1), idx = Math.min(SUB_NM - 1, Math.floor(L)), frac = L - idx;
+    wmFxCtx.globalCompositeOperation = 'destination-out';
+    wmFxCtx.save(); wmFxCtx.translate(-srcR.x, -srcR.y);    // anchor the 512px noise tiling to SOURCE-space device px — the same wmUv-space sampling the sublimation shader uses, so the grain rides the mark identically on both backends
+    wmFxCtx.fillStyle = subPattern(idx); wmFxCtx.fillRect(srcR.x, srcR.y, srcR.w, srcR.h);
+    if(frac > 0.002 && idx + 1 < SUB_NM){ wmFxCtx.globalAlpha = frac;
+      wmFxCtx.fillStyle = subPattern(idx + 1); wmFxCtx.fillRect(srcR.x, srcR.y, srcR.w, srcR.h); wmFxCtx.globalAlpha = 1; }
+    wmFxCtx.restore(); wmFxCtx.globalCompositeOperation = 'source-over';
+    // exit transform — the shader's wmUv = a + (v - a - (0,dN))/sc inverted to dest space: v = a + (0,dN) + (s - a)·sc
+    const W = canvas.width, H = canvas.height, sc = wmScaleV, dN = wmDriftV, op = wmOpV, ax = 0.5, ay = 0.36;
+    ctx2.globalAlpha = op;
+    ctx2.drawImage(wmFxC, 0, 0, srcR.w, srcR.h,
+      ax * W + (srcR.x - ax * W) * sc, ay * H + dN * H + (srcR.y - ay * H) * sc, srcR.w * sc, srcR.h * sc);
+    ctx2.globalAlpha = 1;
+  }
+  function draw2DDissolve(diss, wmBlur){
+    if(!buildWmFx(diss, wmBlur)) return;
+    const W = canvas.width, H = canvas.height;
+    const sc = wmScaleV, dN = wmDriftV, op = wmOpV;
+    const cellsX = maskW, cellsY = maskH, cw = W / cellsX, ch = H / cellsY;
     // THE SCATTER — iterate only the cells that could show ink this frame: the ink bbox widened by the CURRENT jitter reach
     // (±0.030·diss of W) and raised by the CURRENT rise reach (up to 0.175·diss of H — cells ABOVE the letters sample DOWN
     // into them as the flecks fly up). Every constant below is the shader's, verbatim.
@@ -459,7 +568,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
       ctx2.globalAlpha = 1;
       return;
     }
-    draw2DDissolve(wmDiss, wmBlur);
+    if(subExit) draw2DSublime(wmDiss, wmBlur); else draw2DDissolve(wmDiss, wmBlur);
   }
 
   let painted = false, heroLast = -1, lastBgBlur = -1, lastWmBlur = -1, lastWmDiss = -1;
@@ -490,7 +599,8 @@ export function createDiveLens({ canvas, dir, count, settings }){
         if(wmTexNeedsUpload){                                                             // gated on the content-only flag: the wordmark-exit window's continuous scale/drift/op change no longer forces any re-upload (those ride shader uniforms)
           if(wmTexAlloc){ gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, wmc); }
           else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, wmc); wmTexAlloc = true; } } } catch(e){ wmTexAlloc = false; }
-      if(resized || !painted) gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));   // only changes on resize — was rewritten every dirty frame (i.e. every frame of the wordmark-exit window) for an unchanging value
+      if(resized || !painted){ gl.uniform1f(uA, canvas.width / Math.max(1, canvas.height));   // only changes on resize — was rewritten every dirty frame (i.e. every frame of the wordmark-exit window) for an unchanging value
+        if(uNScaleU) gl.uniform1f(uNScaleU, canvas.height / NSIZE); }                         // sublimation: device px → noise texels (the 2D masks tile at the same 1 texel = 1 device px)
       gl.uniform1f(uBgBlur, bgBlur); gl.uniform1f(uWmBlur, wmBlur); gl.uniform1f(uWmDiss, wmDiss);
       gl.uniform1f(uWmScaleU, wmScaleV); gl.uniform1f(uWmDriftU, wmDriftV); gl.uniform1f(uWmOpU, wmOpV);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -542,10 +652,10 @@ export function createDiveLens({ canvas, dir, count, settings }){
     get warm(){ for(let k = 0; k < Math.min(WARM_PRELOAD, count); k++){ if(!isReady(frames[k])) return false; } return true; },   // true once the first WARM_PRELOAD Image objects are decoded + drawable — stronger than HTTP cache presence (which can silently fail or be incomplete)
     get cached(){ return prefetchDone; },   // true once ALL count frames have been HTTP-prefetched (the whole dive is in cache → the fast scrub never network-stalls). The loader gates on this via the 'hero' signal.
     get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
-    destroy(){ stop(); try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
+    destroy(){ stop(); destroyed = true; try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
       pendingQueue.length = 0;                                                        // drop queued (not-yet-started) frame loads — they'd otherwise keep fetching+decoding into this dead instance as inflight slots free up
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
-      scrimC = blurA = blurB = wmFxC = wmFxCtx = cyanC = cyanCtx = maskData = null;   // release the 2D compositor's scratch surfaces (no-ops on the WebGL path)
-      try { if(gl){ gl.deleteTexture(tex); gl.deleteTexture(wmTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } } catch(e){} }
+      scrimC = blurA = blurB = wmFxC = wmFxCtx = cyanC = cyanCtx = maskData = subPats = null;   // release the 2D compositor's scratch surfaces (no-ops on the WebGL path)
+      try { if(gl){ gl.deleteTexture(tex); gl.deleteTexture(wmTex); if(noiseTex) gl.deleteTexture(noiseTex); gl.deleteBuffer(quad); gl.deleteProgram(prog); gl.clear(gl.COLOR_BUFFER_BIT); } } catch(e){} }
   };
 }
