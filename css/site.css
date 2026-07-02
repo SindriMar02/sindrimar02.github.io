@@ -1020,3 +1020,9 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
 .news-poster{margin:0;display:flex;justify-content:center;}
 .news-poster img{width:min(26rem,100%);height:auto;border:1px solid var(--hairline);border-radius:var(--radius-md);display:block;}
 @media (max-width:900px){.news-gallery{grid-template-columns:repeat(2,1fr);}}
+
+/* ============ MERKJAKLÖPP mark — white holding-group logo (footer legal bar + about Group tile) ============ */
+.fl-copy{display:inline-flex;align-items:center;gap:.6rem;}
+.fl-mk{width:16px;height:18px;opacity:.75;}
+.mk-v{display:flex;align-items:center;gap:.55rem;}
+.pt-v .mk-mark{flex:none;width:22px;height:25px;opacity:.9;}
