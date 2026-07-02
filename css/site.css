@@ -1009,3 +1009,14 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
   .boot-skip{bottom:calc(1.4rem + env(safe-area-inset-bottom));right:calc(1.4rem + env(safe-area-inset-right));}
   .cine-skip{bottom:calc(1rem + env(safe-area-inset-bottom));}
 }
+
+/* ============ NEWS — attended exhibitions + updates (news/index.html) ============ */
+.news-post .home-head{margin-bottom:var(--space-7);}
+.news-gallery{list-style:none;margin:0;padding:0;display:grid;gap:var(--grid-gap);
+  grid-template-columns:repeat(3,1fr);}
+.news-gallery li{margin:0;overflow:hidden;border:1px solid var(--hairline);border-radius:var(--radius-md);
+  background:var(--c-card-bg);aspect-ratio:3/4;}
+.news-gallery img{width:100%;height:100%;object-fit:cover;display:block;}
+.news-poster{margin:0;display:flex;justify-content:center;}
+.news-poster img{width:min(26rem,100%);height:auto;border:1px solid var(--hairline);border-radius:var(--radius-md);display:block;}
+@media (max-width:900px){.news-gallery{grid-template-columns:repeat(2,1fr);}}
