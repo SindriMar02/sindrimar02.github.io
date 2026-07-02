@@ -11,10 +11,20 @@ import { IS } from '/js/i18n-dict.js';
 import { scramble } from '/js/scramble.js';
 
 const KEY = 'artix-lang';
+
+// ICELANDIC ON HOLD — launch ships EN-only while the IS pass is finished behind the scenes. The whole engine + dict stay
+// intact: visitors always load English (stale localStorage 'is' included, and nothing persists), but window.__artixLang.set('is')
+// still swaps in place for internal review. Re-enable: flip to false + restore the .mast-lang toggle in partials/masthead.html.
+const HOLD_IS = true;
+
 const reduce = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
 const inView = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < (window.innerHeight || 0); };
 
-function getLang(){ try { return localStorage.getItem(KEY) === 'is' ? 'is' : 'en'; } catch(e){ return 'en'; } }
+let sessionLang = 'en';   // in-memory language while HOLD_IS (never read from / written to storage)
+function getLang(){
+  if(HOLD_IS) return sessionLang;
+  try { return localStorage.getItem(KEY) === 'is' ? 'is' : 'en'; } catch(e){ return 'en'; }
+}
 
 // Snapshot the original English on every localised node ONCE, before any override is applied — so a later swap back to EN
 // restores the real markup (the IS overrides overwrite innerHTML, so EN can't be recovered from the DOM afterwards).
@@ -86,7 +96,8 @@ function markToggles(lang){
 function set(lang){
   lang = lang === 'is' ? 'is' : 'en';
   if(lang === getLang()){ markToggles(lang); return; }     // no-op if unchanged
-  try { localStorage.setItem(KEY, lang); } catch(e){}
+  if(HOLD_IS) sessionLang = lang;                          // internal review only — never persisted while IS is on hold
+  else try { localStorage.setItem(KEY, lang); } catch(e){}
   swapText(lang);                                           // 1) text/attrs swap in place — scroll position untouched
   document.documentElement.setAttribute('lang', lang);
   markToggles(lang);

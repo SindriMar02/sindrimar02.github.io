@@ -83,14 +83,9 @@
       <li><a href="/news/" data-i18n="nav.link.news">News</a></li>
     </ul>
 
-    <!-- UTILITY CLUSTER — permanent right home for language + CTA. -->
+    <!-- UTILITY CLUSTER — CTA only while the Icelandic pass is ON HOLD (launch is EN-only). To re-enable IS:
+         restore the .mast-lang group + .mast-div here and in the drawer below, and flip HOLD_IS in js/i18n.js. -->
     <div class="mast-end">
-      <div class="mast-lang" role="group" aria-label="Language / Tungumál" data-i18n-attr="aria-label:nav.lang">
-        <button type="button" data-lang-btn="is" aria-pressed="false" lang="is">IS</button>
-        <span class="mast-lang-sep" aria-hidden="true"></span>
-        <button type="button" data-lang-btn="en" aria-pressed="true" lang="en">EN</button>
-      </div>
-      <span class="mast-div" aria-hidden="true"></span>
       <a class="mast-cta" href="/contact/" data-i18n="nav.cta.request_briefing">Request a briefing</a>
     </div>
 
@@ -119,12 +114,6 @@
     </nav>
 
     <a class="mast-cta" href="/contact/" data-i18n="nav.cta.request_briefing">Request a briefing</a>
-
-    <div class="mast-lang mast-lang-drawer" role="group" aria-label="Language / Tungumál" data-i18n-attr="aria-label:nav.lang">
-      <button type="button" data-lang-btn="is" aria-pressed="false" lang="is">IS</button>
-      <span class="mast-lang-sep" aria-hidden="true"></span>
-      <button type="button" data-lang-btn="en" aria-pressed="true" lang="en">EN</button>
-    </div>
   </div>
 </header>
 <!-- partial:masthead:end -->
