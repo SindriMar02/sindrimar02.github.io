@@ -1,0 +1,7 @@
+/* TEAM */
+Design and development: SNDR Studio
+Location: Iceland
+
+/* SITE */
+Language: English / Íslenska
+Standards: HTML5, CSS3, ES modules
