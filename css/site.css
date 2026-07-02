@@ -277,14 +277,7 @@ html:not(.js) .boot{display:none!important;}
 .boot-pct{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);color:var(--text-faint);margin:0;}
 .boot-skip{position:absolute;bottom:1.4rem;right:1.4rem;background:none;border:1px solid var(--hairline-strong);color:var(--text-dim);font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:var(--track-label);text-transform:uppercase;padding:.5rem .9rem;border-radius:var(--radius-pill);cursor:pointer;}
 
-/* hero */
-.hero{position:relative;min-height:100svh;display:grid;align-content:center;padding:var(--section-y) var(--pad);max-width:var(--max);margin:0 auto;overflow:hidden;}
-.hero-bg{position:absolute;inset:0;z-index:-1;background:#000 center/cover no-repeat url("/assets/radar-plate.webp");filter:var(--grade);opacity:.5;}
-.hero-bg::after{content:"";position:absolute;inset:0;background:radial-gradient(85% 75% at 50% 50%,transparent,var(--abyss) 80%);}
-.hero-inner{display:grid;gap:var(--space-5);}
-.hero h1{font-family:var(--font-display);font-weight:800;font-size:var(--fs-display-md);letter-spacing:var(--track-display);line-height:.92;margin:0;}
-.hero-sub{font-size:var(--fs-body-lg);color:var(--text-dim);max-width:var(--measure);margin:0;}
-.hero-cue{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--accent-signal);text-decoration:none;width:max-content;}
+/* (the legacy .hero/.hero-bg block is gone — no page uses class="hero"; the homepage hero is .cinematic) */
 
 /* ONE-CUT CINEMATIC — a SINGLE pinned stage holds BOTH phases (descent + story); js/cinematic.js */
 .cinematic{position:relative;height:1100vh;background:#000;
@@ -309,7 +302,6 @@ html:not(.js) .boot{display:none!important;}
 .story-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
 .story-grade{position:absolute;inset:0;background:var(--abyss);opacity:.34;}   /* normal blend (was mix-blend:multiply — that recomposited every scrubbed frame) */
 .story-scrim{position:absolute;inset:0;background:linear-gradient(0deg,var(--abyss) 2%,rgba(5,9,15,.18) 40%,transparent 72%),linear-gradient(90deg,rgba(5,9,15,.68),transparent 56%);}
-.story-vignette{display:none;}   /* vignette moved to .cinematic-stage::before — this element is now obsolete */
 .chapters{position:absolute;inset:0;}
 .chapter{position:absolute;inset:0;display:grid;align-content:center;gap:var(--space-5);width:min(var(--max),100%);margin:0 auto;padding:var(--section-y) var(--pad);}
 .chapter h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2.1rem,5.1vw,4.4rem);letter-spacing:var(--track-display);line-height:var(--leading-tight);margin:0;text-shadow:0 2px 30px rgba(2,6,13,.8);}   /* dialled down from --fs-h1 (max 6.2rem) — this .chapter h2 rule (0,1,1) is what actually governs the pinned chapter titles, overriding .ch-title */
@@ -322,7 +314,7 @@ html:not(.js) .boot{display:none!important;}
 .cinematic.is-static .cinematic-stage::before{display:none;}   /* no stage vignette in stacked-chapter mode */
 .cinematic.is-static .descent{display:none;}
 .cinematic.is-static #story{position:static;opacity:1;visibility:visible;height:auto;}
-.cinematic.is-static .story-canvas,.cinematic.is-static .story-vignette,.cinematic.is-static .story-grade,.cinematic.is-static .story-scrim{display:none;}
+.cinematic.is-static .story-canvas,.cinematic.is-static .story-grade,.cinematic.is-static .story-scrim{display:none;}
 .cinematic.is-static .chapters{position:static;}
 .cinematic.is-static .chapter{position:relative;inset:auto;min-height:100svh;opacity:1!important;transform:none!important;}
 
@@ -363,6 +355,7 @@ html:not(.js) .boot{display:none!important;}
 .ch-cue{font-family:var(--font-mono);font-size:var(--fs-mono-label);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--text-faint);margin:0;}
 .ch-cue span{display:inline-block;animation:cuebob 2.4s var(--ease-io) infinite;}
 @keyframes cuebob{0%,100%{transform:translateY(0);}50%{transform:translateY(5px);}}
+.chapter:not(.is-on) .ch-cue span{animation-play-state:paused;}   /* the cue is opacity:0 unless its chapter is on — don't tick the bob invisibly for the page's whole pre-story life */
 
 /* DECODE text entrance — per-char scramble owns the headline reveal (js/scramble.js). Lines are visible by default
    (no-JS / reduced-motion safe); no competing line-slide or blur transition. */
@@ -422,6 +415,10 @@ html:not(.js) .boot{display:none!important;}
   50%{filter:drop-shadow(0 0 18px color-mix(in srgb,var(--accent-signal) 56%,transparent)) brightness(1.12);}
 }
 @media (prefers-reduced-motion:reduce){.fh-mark{animation:none;}}
+/* the breath ticks (style recalc + filter interp) from page load, but pre-reveal the helm sits at opacity:0 under the
+   staggered footer entrance — pause it until .is-in so the invisible phase costs nothing (resumes on reveal, periodic
+   loop so the phase jump is unobservable) */
+.js .site-footer .footer-col:not(.is-in) .fh-mark{animation-play-state:paused;}
 
 /* giant wordmark — the editorial anchor; ice-gradient text, clip-reveal on enter */
 /* Spec v1 §01 — footer wordmark is Michroma too; resized from the old 23rem (which assumed a CONDENSED face) so Michroma's wide caps fit the column */
@@ -525,7 +522,6 @@ html.js .chapter-hero.is-on::after{opacity:.45;}
 @media (prefers-reduced-motion:reduce){html.js .chapter-hero .ch-title{opacity:1;transform:none;}html.js .chapter-hero .ch-title,html.js .chapter-hero::after{transition:none;}}
 
 /* (story grain removed — .cinematic-stage::after already grains the whole stage, and mix-blend:overlay here recomposited every scrubbed frame) */
-/* .story-vignette is now display:none — vignette is on .cinematic-stage::before */
 
 /* live-instrument progress rail (homepage only) */
 .story-rail{position:fixed;right:clamp(1.1rem,2.6vw,2.6rem);top:50%;transform:translateY(-50%);z-index:60;
@@ -602,9 +598,10 @@ html.js .chapter-hero.is-on::after{opacity:.45;}
 .aud-tile{position:relative;display:flex;flex-direction:column;gap:.55rem;padding:var(--space-6) var(--space-6) var(--space-7);
   border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--c-card-bg);overflow:hidden;
   transition:border-color var(--dur-mid) var(--ease),background var(--dur-mid) var(--ease),transform var(--dur-mid-2) var(--ease-expo),box-shadow var(--dur-mid-2) var(--ease-expo);}
-.aud-tile::before{content:"";position:absolute;top:0;left:0;height:2px;width:0;background:var(--accent-signal);transition:width var(--dur-mid-2) var(--ease-expo);}
+.aud-tile::before{content:"";position:absolute;top:0;left:0;height:2px;width:100%;background:var(--accent-signal);
+  transform:scaleX(0);transform-origin:left;transition:transform var(--dur-mid-2) var(--ease-expo);}   /* was a width:0→100% transition — layout per frame; scaleX of a solid 2px bar is pixel-identical on the compositor */
 .aud-tile:hover,.aud-tile:focus-within{transform:translateY(-3px);border-color:var(--hairline-strong);background:var(--c-card-bg-hover);box-shadow:var(--glow-ice);}
-.aud-tile:hover::before,.aud-tile:focus-within::before{width:100%;}
+.aud-tile:hover::before,.aud-tile:focus-within::before{transform:scaleX(1);}
 .aud-no{font-family:var(--font-mono);font-size:var(--fs-mono-micro);letter-spacing:.2em;color:var(--text-faint);font-variant-numeric:tabular-nums;}
 .aud-tile:hover .aud-no{color:var(--accent-signal);}
 .aud-name{font-family:var(--font-display);font-weight:var(--weight-display-bold);font-size:var(--fs-h4);letter-spacing:var(--track-display-2);line-height:var(--leading-tight);color:var(--text);margin:0;}
@@ -755,17 +752,18 @@ html.js .chapter-hero.is-on::after{opacity:.45;}
 .cf-seg{position:relative;flex:1 1 auto;min-width:40px;max-width:240px;height:8px;}
 .cf-rail{position:absolute;left:0;right:0;top:50%;height:1px;
   background:linear-gradient(90deg,color-mix(in srgb,var(--accent-signal) 6%,transparent),color-mix(in srgb,var(--accent-signal) 30%,transparent),color-mix(in srgb,var(--accent-signal) 6%,transparent));}
-.cf-pulse{position:absolute;top:50%;margin-top:-3px;left:0;width:6px;height:6px;border-radius:50%;opacity:0;
+/* the pulse is a full-segment-width transparent RUNNER animated on transform (compositor path — the old version animated
+   `left`, forcing style+layout+paint every frame it was in view); the visible 6px dot rides its left edge as a ::before.
+   translateX(%) resolves against the runner = the segment width, so -3%→103% traces the exact same trajectory as the old
+   left:-3%→103%. Same dot, same shadow, same timing — zero pixel change. */
+.cf-pulse{position:absolute;top:50%;margin-top:-3px;left:0;width:100%;height:6px;opacity:0;pointer-events:none;}
+.cf-pulse::before{content:"";position:absolute;left:0;top:0;width:6px;height:6px;border-radius:50%;
   background:var(--accent-signal);box-shadow:0 0 9px 1px color-mix(in srgb,var(--accent-signal) 60%,transparent);}
-.cf-seg-2 .cf-pulse{background:var(--accent-live);box-shadow:0 0 9px 1px color-mix(in srgb,var(--accent-live) 55%,transparent);}   /* Spec v1 §03: seg-2 pulse = --accent-live #FF6A00 (arrival/live) */
-/* relay + helm charge run ONLY while the section is in view (connect-beams.js toggles .is-flowing) */
+.cf-seg-2 .cf-pulse::before{background:var(--accent-live);box-shadow:0 0 9px 1px color-mix(in srgb,var(--accent-live) 55%,transparent);}   /* Spec v1 §03: seg-2 pulse = --accent-live #FF6A00 (arrival/live) */
+/* relay runs ONLY while the section is in view (connect-beams.js toggles .is-flowing) */
 .flow-diagram.is-flowing .cf-seg-1 .cf-pulse{animation:cfRelay var(--P) ease-in-out infinite;}
 .flow-diagram.is-flowing .cf-seg-2 .cf-pulse{animation:cfRelay var(--P) ease-in-out infinite;animation-delay:var(--P-half);}
-@keyframes cfRelay{0%{left:-3%;opacity:0;}7%{opacity:1;}43%{left:103%;opacity:1;}50%{opacity:0;}100%{left:103%;opacity:0;}}
-@keyframes cfHelmPulse{
-  0%,40%{transform:scale(1);filter:drop-shadow(0 0 11px color-mix(in srgb,var(--accent-signal) 22%,transparent));}
-  50%{transform:scale(1.13);filter:drop-shadow(0 0 22px color-mix(in srgb,var(--accent-signal) 62%,transparent));}
-  60%,100%{transform:scale(1);filter:drop-shadow(0 0 11px color-mix(in srgb,var(--accent-signal) 22%,transparent));}}
+@keyframes cfRelay{0%{transform:translateX(-3%);opacity:0;}7%{opacity:1;}43%{transform:translateX(103%);opacity:1;}50%{opacity:0;}100%{transform:translateX(103%);opacity:0;}}
 /* mobile: stack vertically, rails turn vertical, hide the moving pulse */
 @media(max-width:768px){
   .home-section.flow .flow-diagram{flex-direction:column;gap:clamp(26px,7vw,40px);}
@@ -870,7 +868,7 @@ html.js .chapter-hero.is-on::after{opacity:.45;}
 html:not(.js) .descent{display:none;}
 html:not(.js) .cinematic,html:not(.js) .cinematic-stage{height:auto;overflow:visible;}
 html:not(.js) #story{position:static;opacity:1;visibility:visible;height:auto;}
-html:not(.js) .story-canvas,html:not(.js) .story-vignette,html:not(.js) .story-grade,html:not(.js) .story-scrim{display:none;}
+html:not(.js) .story-canvas,html:not(.js) .story-grade,html:not(.js) .story-scrim{display:none;}
 html:not(.js) .cinematic-stage::before{display:none;}
 html:not(.js) .chapters{position:static;}
 html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;transform:none;}
@@ -883,13 +881,18 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
   color:var(--text-faint);background:color-mix(in srgb,var(--abyss) 32%,transparent);
   border:1px solid color-mix(in srgb,var(--frost) 12%,transparent);border-radius:var(--radius-pill);
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer;
-  opacity:0;pointer-events:none;
-  transition:opacity .6s var(--ease),transform .6s var(--ease-expo),color .3s var(--ease),border-color .3s var(--ease);}
-.cine-skip.is-on{opacity:.82;pointer-events:auto;transform:translate(0,0);}
+  opacity:0;pointer-events:none;visibility:hidden;
+  /* visibility gate (delayed to the fade-out's .6s end): at opacity 0 the pill still forced the engine to keep + re-blur
+     its backdrop surface EVERY frame of the canvas scrub behind it (this is the site's only backdrop-filter, and Safari
+     re-filters even at opacity 0). hidden kills the surface + the arrow-bob ticks; pixels are identical (it was invisible). */
+  transition:opacity .6s var(--ease),transform .6s var(--ease-expo),color .3s var(--ease),border-color .3s var(--ease),visibility 0s .6s;}
+.cine-skip.is-on{opacity:.82;pointer-events:auto;transform:translate(0,0);visibility:visible;
+  transition:opacity .6s var(--ease),transform .6s var(--ease-expo),color .3s var(--ease),border-color .3s var(--ease),visibility 0s 0s;}
 .cine-skip:hover{opacity:1;color:var(--frost);border-color:color-mix(in srgb,var(--frost) 26%,transparent);}
 .cine-skip:focus-visible{outline:2px solid var(--accent-signal);outline-offset:3px;opacity:1;}
 .cine-skip .cs-line{width:1px;height:1.05em;background:color-mix(in srgb,var(--frost) 24%,transparent);}
 .cine-skip .cs-arrow{color:var(--accent-signal);line-height:1;animation:csArrowBob 2.1s var(--ease-io) infinite;}
+.cine-skip:not(.is-on) .cs-arrow{animation-play-state:paused;}   /* visibility:hidden skips paint but not the animation tick — stop the bob entirely while the pill is retired */
 @keyframes csArrowBob{0%,100%{transform:translateY(-1px);}50%{transform:translateY(2px);}}
 @media (prefers-reduced-motion:reduce){.cine-skip .cs-arrow{animation:none;}}
 
@@ -963,7 +966,7 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
   /* hero status chip → top-left under the eyebrow so it clears the burger + pill */
   .ch-status{top:max(env(safe-area-inset-top),5.2rem);right:auto;left:var(--pad);}
   /* display headlines tamed for the narrow column + safe wrapping */
-  .hero h1,.page-hero h1,.closing-h{font-size:clamp(2.3rem,10vw,3.3rem);line-height:1.04;overflow-wrap:break-word;}
+  .page-hero h1,.closing-h{font-size:clamp(2.3rem,10vw,3.3rem);line-height:1.04;overflow-wrap:break-word;}
   /* section rhythm — reclaim dead vertical space */
   .home-section{padding:clamp(3.25rem,11vw,5rem) var(--pad);}
   .home-head{margin-bottom:2rem;}
@@ -994,7 +997,7 @@ html:not(.js) .chapter{position:relative;inset:auto;min-height:100svh;opacity:1;
 
 /* Touch (no hover): promote the live-instrument resting states the tiles/cards only reveal on :hover + comfortable footer targets */
 @media (hover:none){
-  .aud-tile::before{width:100%;}
+  .aud-tile::before{transform:scaleX(1);}   /* matches the scaleX conversion above — width:100% is the resting state now, the reveal rides transform */
   .aud-no{color:var(--accent-signal);}
   .bento-card .bento-expand{opacity:1;border-color:color-mix(in srgb,var(--accent-signal) 55%,transparent);}
   .footer-nav a{display:inline-flex;align-items:center;min-height:44px;}

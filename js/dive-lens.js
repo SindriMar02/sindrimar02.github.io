@@ -234,13 +234,13 @@ export function createDiveLens({ canvas, dir, count, settings }){
     if(c !== lastCenter){ lastCenter = c; for(let i = c - 8; i <= c + 72; i++) load(i);   // wide FORWARD-biased window: 72 frames lead (was 48) — re-tuned for the native-1920 frames' heavier decode cost so the bezier glide's peak velocity never out-runs decode; gated by the shared concurrency budget above, NOT unconditional
       if(++evictTick >= 4){ evictTick = 0;                                                // throttle the O(count) eviction scan to every 4th center-change (was every change) — eviction doesn't need rAF precision, and the fast glide changes center nearly every frame
         for(let i = 1; i <= count; i++){ const im = frames[i-1]; if(im && Math.abs(i - c) > 96){ drop(im); frames[i-1] = undefined; } } } } }
-  function coverDraw(){ const cw = earthC.width, ch = earthC.height; if(!cw) return false;
+  function coverBlit(im){ const cw = earthC.width, ch = earthC.height, ir = im.naturalWidth / im.naturalHeight, cr = cw / ch; let w, h;
+    if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } octx.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h); }   // hoisted out of coverDraw — no per-frame closure alloc in the scrub hot path (same treatment canvas-seq's cover() already got)
+  function coverDraw(){ if(!earthC.width) return false;
     const lo = Math.max(1, Math.min(count, Math.floor(curF))), hi = Math.min(count, lo + 1), frac = curF - lo;
     const a = frames[lo-1]; if(!isReady(a)){ load(lo, undefined, true); return false; }   // FRAME-EXACT: hold the last drawn frame until this one is ready (no substitute frame → no halt-snap). PRIORITIZED — this frame is blocking the visible render right now, it must never wait behind speculative lookahead
-    const cover = (im) => { const ir = im.naturalWidth / im.naturalHeight, cr = cw / ch; let w, h;
-      if(ir > cr){ h = ch; w = ch * ir; } else { w = cw; h = cw / ir; } octx.drawImage(im, (cw - w) / 2, (ch - h) / 2, w, h); };
-    octx.globalAlpha = 1; cover(a);
-    const b = frames[hi-1]; if(frac > 0 && isReady(b)){ octx.globalAlpha = frac; cover(b); octx.globalAlpha = 1; }
+    octx.globalAlpha = 1; coverBlit(a);
+    const b = frames[hi-1]; if(frac > 0 && isReady(b)){ octx.globalAlpha = frac; coverBlit(b); octx.globalAlpha = 1; }
     return true; }
   const prefetchCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   const WARM_PRELOAD = 50;   // warm gate checks decode-readiness of these Image objects, not just HTTP cache presence
@@ -627,7 +627,12 @@ export function createDiveLens({ canvas, dir, count, settings }){
   function stop(){ running = false; cancelAnimationFrame(raf); }
   // GPU dropped the WebGL context: fall back to the poster (canvas transparent) instead of a permanent black canvas, and stop the loop
   // (WebGL backend only — a 2D canvas has no context-loss lifecycle to recover from; its listeners would just be dead weight)
-  if(gl) canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); painted = false; lastDrawnF = -1; earthDirty = false; canvas.style.opacity = '0'; stop(); }, false);
+  // NAMED so destroy() can remove them — the canvas is markup-owned and outlives this instance across teardown/rebuild
+  // (matchMedia flips, bfcache restores); anonymous listeners kept every dead instance reachable (~2 full-res canvases each),
+  // and a later real context-restore would have run EVERY accumulated handler: each dead instance re-creating orphan GL
+  // programs and restarting its frame() loop against the live one on the same canvas.
+  const onCtxLost = (e) => { e.preventDefault(); painted = false; lastDrawnF = -1; earthDirty = false; canvas.style.opacity = '0'; stop(); };
+  if(gl) canvas.addEventListener('webglcontextlost', onCtxLost, false);
   // RESTORE (owner: "sometimes the video just disappears and background is black") — preventDefault() above IS what tells the browser to
   // actually attempt restoration (GPU resets/driver hiccups/too many contexts piling up across refreshes are the common real-world
   // triggers), but nothing was ever resuming afterward: the old program/buffers/textures were destroyed with the lost context and the
@@ -635,8 +640,9 @@ export function createDiveLens({ canvas, dir, count, settings }){
   // earthC (the 2D source canvas) and wmc (the wordmark canvas) are untouched by a WebGL context loss — only the GL-side resources need
   // recreating — so this just rebuilds the program/buffers/textures, forces one full re-upload of the already-decoded content, and
   // resumes the loop. No re-fetch, no re-decode, no visible re-scramble.
-  if(gl) canvas.addEventListener('webglcontextrestored', () => {
-    setupGL(); earthDirty = true; wmTexStale = true; texAlloc = false; wmTexAlloc = false; needsFit = true; start(); }, false);   // setupGL() makes brand-new (unallocated) textures → the alloc flags must reset so the next upload re-allocs via texImage2D before any texSubImage2D. wmTexStale (not bakedSettled=false): wmc's pixels survive a WebGL-only context loss, so this only needs a re-upload, not a re-bake
+  const onCtxRestored = () => {
+    setupGL(); earthDirty = true; wmTexStale = true; texAlloc = false; wmTexAlloc = false; needsFit = true; start(); };   // setupGL() makes brand-new (unallocated) textures → the alloc flags must reset so the next upload re-allocs via texImage2D before any texSubImage2D. wmTexStale (not bakedSettled=false): wmc's pixels survive a WebGL-only context loss, so this only needs a re-upload, not a re-bake
+  if(gl) canvas.addEventListener('webglcontextrestored', onCtxRestored, false);
   setFrame(0); start();
 
   return {
@@ -653,6 +659,7 @@ export function createDiveLens({ canvas, dir, count, settings }){
     get cached(){ return prefetchDone; },   // true once ALL count frames have been HTTP-prefetched (the whole dive is in cache → the fast scrub never network-stalls). The loader gates on this via the 'hero' signal.
     get painted(){ return painted; },   // true once the WebGL hero has drawn its first real frame (loader waits on this so the live render shows on entry)
     destroy(){ stop(); destroyed = true; try { ro && ro.disconnect(); } catch(e){} window.removeEventListener('resize', onResize); try { prefetchCtrl && prefetchCtrl.abort(); } catch(e){}
+      if(gl){ canvas.removeEventListener('webglcontextlost', onCtxLost, false); canvas.removeEventListener('webglcontextrestored', onCtxRestored, false); }
       pendingQueue.length = 0;                                                        // drop queued (not-yet-started) frame loads — they'd otherwise keep fetching+decoding into this dead instance as inflight slots free up
       for(let i = 0; i < frames.length; i++){ drop(frames[i]); } frames.length = 0;
       scrimC = blurA = blurB = wmFxC = wmFxCtx = cyanC = cyanCtx = maskData = subPats = null;   // release the 2D compositor's scratch surfaces (no-ops on the WebGL path)

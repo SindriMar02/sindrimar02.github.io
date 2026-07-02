@@ -21,7 +21,12 @@ export function init(){
   offHero = onProgress('hero', (v) => { heroP = Math.max(heroP, v); if(heroP >= 0.6){ heroOK = true; maybeRelease(); } });   // RELEASE at WARM (0.6 = hero painted + the opening frames decoded), NOT the full dive cache — the site must be usable fast; the rest of the dive streams in the BACKGROUND (bulk prefetch already started at warm) and the in-page warm-gate holds the descent SCROLL until cached so it still never stutters
   const decode = (src) => new Promise(r => { const im = new Image(); im.onload = im.onerror = () => r(); im.src = src; });
   let assetsOK = false;
-  Promise.all([ document.fonts ? document.fonts.ready.catch(() => {}) : Promise.resolve(), decode('/assets/dive-frames/frame-0001.webp') ]).then(() => { assetsOK = true; maybeRelease(); });
+  // warm the poster THIS viewport actually shows (same breakpoints as the <link rel=preload> media queries): ≤860px renders
+  // the hero-poster ::before, never frame-0001 — decoding the dive frame there burned 116KB on the critical path while the
+  // real LCP asset went unwarmed
+  const heroImg = matchMedia('(min-width:861px)').matches ? '/assets/dive-frames/frame-0001.webp'
+    : matchMedia('(max-width:520px)').matches ? '/assets/hero-poster.webp' : '/assets/hero-poster-md.webp';
+  Promise.all([ document.fonts ? document.fonts.ready.catch(() => {}) : Promise.resolve(), decode(heroImg) ]).then(() => { assetsOK = true; maybeRelease(); });
   // NOTE: frames 2-12 are NOT separately warmed here — dive-lens.js's own bounded-concurrency warm set (frames 1-50) already covers
   // them with its own retry/stall-watchdog logic; a second independent Image+decode() per frame here was pure duplicate decode work,
   // stacking on the exact frames most contended during cold load (owner: "sometimes images don't load on first open").

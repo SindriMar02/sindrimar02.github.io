@@ -175,7 +175,8 @@ function renderStory(sP){
     const on = (k === active);
     if(c._on !== on){ c._on = on; c.classList.toggle('is-on', on); const want = on ? '1' : '0'; if(c.dataset.live !== want){ c.dataset.live = want; setLive(c, on); } }
   });
-  if(railFill) railFill.style.transform = 'scaleY(' + sP.toFixed(3) + ')';
+  const rf = sP.toFixed(3);
+  if(railFill && railFill._v !== rf){ railFill._v = rf; railFill.style.transform = 'scaleY(' + rf + ')'; }   // change-gated like every other write here (the scrub:0.6 convergence tail repeats values)
   const railOn = sP > 0.02 && sP < 0.985;
   if(rail && rail._on !== railOn){ rail._on = railOn; rail.classList.toggle('is-on', railOn); }
   if(railNum && railNum._n !== active){ railNum._n = active; railNum.textContent = active === 0 ? '00' : ('0' + active); }
@@ -352,8 +353,12 @@ function buildAnimated(){
   st = ScrollTrigger.create({ trigger: sec, start: 'top top', end: 'bottom bottom', pin: stage, scrub: 0.6, invalidateOnRefresh: true, onUpdate: (self) => paint(self.progress) });
   setupGestureAdvance();                                  // gesture-advance choreography (descent-as-segment + chapter steps) — see doGestureAdvance
   dStage.classList.add('is-on');
-  const rnd = () => (Math.random() * 88 + 1).toFixed(2);
-  ticker = setInterval(() => { if(!locked && !phaseStory && dcVal) dcVal.textContent = rnd() + '°N ' + rnd() + '°W'; }, 90);
+  // coord randomiser: only on the no-WebGL fallback — under .is-lens the DOM coord is display:none for the page's whole
+  // life (site.css hides the legacy overlays), so the lens path would tick 11×/s into an invisible node until first lock
+  if(!dStage.classList.contains('is-lens')){
+    const rnd = () => (Math.random() * 88 + 1).toFixed(2);
+    ticker = setInterval(() => { if(!locked && !phaseStory && dcVal) dcVal.textContent = rnd() + '°N ' + rnd() + '°W'; }, 90);
+  }
   paint(0);
   let booted = false; try { booted = !!sessionStorage.getItem('artix-booted'); } catch(e){}
   if(booted) revealBrand();
@@ -436,7 +441,7 @@ function buildStaticDescent(){
   const telStep = (now) => { const k = clamp((now - telT0) / TEL_DUR, 0, 1); setTelemetry(k); if(k < 1) telRaf = requestAnimationFrame(telStep); };
   telRaf = requestAnimationFrame(telStep);
   const t1 = setTimeout(() => revealBrand(), 380);       // ARTIX decodes out of the acquisition telemetry (canvas wordmark scrambleIn)
-  const t2 = setTimeout(() => { lkd = true; setLock(true); }, 1900);  // ACQUIRING → LOCK (poster racks sharp + coord flips ember); the canvas wordmark carries its own frost (no rampFrost on the hidden DOM word)
+  const t2 = setTimeout(() => { lkd = true; setLock(true); clearInterval(tick); }, 1900);  // ACQUIRING → LOCK (poster racks sharp + coord flips ember); the canvas wordmark carries its own frost (no rampFrost on the hidden DOM word). Lock also RETIRES the coord randomiser — it was a no-op firing 11×/s for the page's life on phones
   staticTimers.push(() => { clearInterval(tick); clearTimeout(t1); clearTimeout(t2); cancelAnimationFrame(telRaf); });
 }
 // MOBILE static headline parallax — the only per-frame work on phones (the cinematic scrub doesn't run here). A STATIC transform
@@ -524,7 +529,7 @@ function teardown(){
     const chip = c.querySelector('.ch-status'); if(chip){ clearTimeout(chip._lock); chip.classList.remove('is-locked'); const em = chip.querySelector('em'); if(em) em.textContent = 'Decoding'; } });
   if(mast){ mast.classList.remove('is-collapsed'); delete mast._col; }
   if(skipBtn){ skipBtn.classList.remove('is-on'); delete skipBtn._on; }
-  if(rail) delete rail._on; if(railNum) delete railNum._n;
+  if(rail) delete rail._on; if(railNum) delete railNum._n; if(railFill) delete railFill._v;
 }
 function build(){
   const lite = mmR.matches || mmW.matches || typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined';

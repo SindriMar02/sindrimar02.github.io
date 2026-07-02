@@ -2,7 +2,7 @@
 let mast, burger, drawer, ticking = false, lastFocus = null, lockedY = 0;
 let onScroll, onBurger, onKey, onNavClick, onTrap;
 // desktop dropdown disclosure menus (Solutions / future Network groups)
-let groups = [], openGroup = null, hoverTimer = null;
+let groups = [], openGroup = null, hoverTimer = null, ddAbort = null;
 let onMastKey, onDocDown, onMastScroll, onMastResize;
 // localized burger aria-label (the static initial value comes from data-i18n-attr; this covers the dynamic open/close swap)
 function burgerLabel(open){ const is = document.documentElement.lang === 'is'; return open ? (is ? 'Loka valmynd' : 'Close menu') : (is ? 'Opna valmynd' : 'Open menu'); }
@@ -48,16 +48,20 @@ function closeAllMenus(returnFocus){ if(openGroup) closeMenu(openGroup, returnFo
 function initDropdowns(){
   groups = [...mast.querySelectorAll('.mast-group')].map(group => ({ group, trigger: group.querySelector('.mast-trigger'), menu: group.querySelector('.mast-menu') })).filter(g => g.trigger && g.menu);
   if(!groups.length) return;
+  // one abortable signal for ALL per-group listeners: the masthead DOM persists across bfcache restores (router.js re-runs
+  // init() on pageshow), so un-removed listeners stacked one set per restore — the doubled click toggle opened+closed the
+  // menu in the same tap, reading as a dead dropdown. cleanup() aborts the whole set at once.
+  ddAbort = new AbortController(); const sig = { signal: ddAbort.signal };
   groups.forEach(g => {
-    g.trigger.addEventListener('click', () => { g.menu.hidden ? openMenu(g, null) : closeMenu(g, false); });
-    g.group.addEventListener('pointerenter', () => { if(matchMedia('(hover:hover)').matches){ clearTimeout(hoverTimer); openMenu(g, null); } });
-    g.group.addEventListener('pointerleave', () => { if(matchMedia('(hover:hover)').matches){ clearTimeout(hoverTimer); hoverTimer = setTimeout(() => closeMenu(g, false), 120); } });
+    g.trigger.addEventListener('click', () => { g.menu.hidden ? openMenu(g, null) : closeMenu(g, false); }, sig);
+    g.group.addEventListener('pointerenter', () => { if(matchMedia('(hover:hover)').matches){ clearTimeout(hoverTimer); openMenu(g, null); } }, sig);
+    g.group.addEventListener('pointerleave', () => { if(matchMedia('(hover:hover)').matches){ clearTimeout(hoverTimer); hoverTimer = setTimeout(() => closeMenu(g, false), 120); } }, sig);
     g.trigger.addEventListener('keydown', (e) => { const items = menuItemsOf(g);
       switch(e.key){
         case 'ArrowDown': case 'Enter': case ' ': e.preventDefault(); openMenu(g, 0); break;
         case 'ArrowUp': e.preventDefault(); openMenu(g, items.length - 1); break;
         case 'Escape': closeMenu(g, true); break;
-      } });
+      } }, sig);
     g.menu.addEventListener('keydown', (e) => { const items = menuItemsOf(g); const i = items.indexOf(document.activeElement);
       switch(e.key){
         case 'ArrowDown': e.preventDefault(); items[(i + 1) % items.length].focus(); break;
@@ -66,7 +70,7 @@ function initDropdowns(){
         case 'End': e.preventDefault(); items[items.length - 1].focus(); break;
         case 'Escape': e.preventDefault(); closeMenu(g, true); break;
         case 'Tab': closeMenu(g, false); break;
-      } });
+      } }, sig);
   });
   onDocDown = (e) => { if(openGroup && !openGroup.group.contains(e.target)) closeAllMenus(false); };
   document.addEventListener('pointerdown', onDocDown);
@@ -117,6 +121,7 @@ export function cleanup(){
   if(onTrap && drawer) drawer.removeEventListener('keydown', onTrap);
   document.removeEventListener('pointerdown', onDocDown); document.removeEventListener('keydown', onMastKey);
   window.removeEventListener('scroll', onMastScroll); window.removeEventListener('resize', onMastResize);
+  if(ddAbort){ ddAbort.abort(); ddAbort = null; }   // drop all per-group dropdown listeners in one shot
   clearTimeout(hoverTimer);
   document.body.style.cssText = ''; document.documentElement.style.overflow = '';
 }

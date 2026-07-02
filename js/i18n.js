@@ -47,7 +47,10 @@ function swapText(lang){
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const k = el.getAttribute('data-i18n');
     const v = lang === 'is' ? (IS[k] != null ? IS[k] : el.__i18nEN) : el.__i18nEN;
-    if(v != null && el.innerHTML !== v){ el.innerHTML = v; dropScrambleState(el); }
+    if(v != null && el.innerHTML !== v){
+      el.querySelectorAll('[data-split]').forEach(dropScrambleState);   // titles scramble on CHILD nodes (.ln i) — cancel their decode rAFs BEFORE innerHTML detaches them, or a mid-decode swap leaves loops mutating detached spans for up to ~1s
+      el.innerHTML = v; dropScrambleState(el);
+    }
   });
   document.querySelectorAll('[data-i18n-attr]').forEach(el => {
     el.getAttribute('data-i18n-attr').split(';').forEach(pair => {
