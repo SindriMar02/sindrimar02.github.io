@@ -12,10 +12,10 @@ import { scramble } from '/js/scramble.js';
 
 const KEY = 'artix-lang';
 
-// ICELANDIC ON HOLD — launch ships EN-only while the IS pass is finished behind the scenes. The whole engine + dict stay
-// intact: visitors always load English (stale localStorage 'is' included, and nothing persists), but window.__artixLang.set('is')
-// still swaps in place for internal review. Re-enable: flip to false + restore the .mast-lang toggle in partials/masthead.html.
-const HOLD_IS = true;
+// ICELANDIC HOLD — re-enabled on the preview branch only (toggle restored in partials/masthead.html).
+// The live branch/site must keep this true until the owner explicitly launches Icelandic there
+// (tools/deploy-live.sh refuses to publish if it ever finds this flipped to false).
+const HOLD_IS = false;
 
 const reduce = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
 const inView = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < (window.innerHeight || 0); };
